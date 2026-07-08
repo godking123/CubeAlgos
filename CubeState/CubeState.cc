@@ -1,5 +1,7 @@
 #include "CubeState.h"
 #include "MoveTable.h"
+#include <sstream>
+#include <stdexcept>
 
 CubeState CubeState::solved() {
     CubeState s;
@@ -16,30 +18,40 @@ bool CubeState::isSolved() const {
 
 CubeState CubeState::apply(Move m) const {
     CubeState next;
-    const MoveTable& table = MOVE_TABLES[static_cast<int>(m)];
-
+    const MoveTable& t = MOVE_TABLES[static_cast<int>(m)];
     for (int i = 0; i < 8; i++) {
-        // Transform CP and CO Based off of Move
-        next.cp[i] = cp[table.cp[i]];
-        next.co[i] = co[table.co[i]];
+        next.cp[i] = cp[t.cp[i]];
+        next.co[i] = (co[t.cp[i]] + t.co[i]) % 3;
     }
-
     for (int i = 0; i < 12; i++) {
-        // Transform EP and EO Based off of Move
-        next.ep[i] = ep[table.ep[i]];
-        next.eo[i] = eo[table.eo[i]];
+        next.ep[i] = ep[t.ep[i]];
+        next.eo[i] = (eo[t.ep[i]] + t.eo[i]) % 2;
     }
     return next;
 }
 
-std::string CubeState::toString() const {
-    std::string out = "CP: ";
-    for (int i = 0; i < 8;  i++) out += std::to_string(cp[i]) + " ";
-    out += "\nCO: ";
-    for (int i = 0; i < 8;  i++) out += std::to_string(co[i]) + " ";
-    out += "\nEP: ";
-    for (int i = 0; i < 12; i++) out += std::to_string(ep[i]) + " ";
-    out += "\nEO: ";
-    for (int i = 0; i < 12; i++) out += std::to_string(eo[i]) + " ";
-    return out;
+const char* moveName(Move m) {
+    static const char* names[] = {
+        "U","U2","U'","R","R2","R'","F","F2","F'",
+        "D","D2","D'","L","L2","L'","B","B2","B'"
+    };
+    return names[static_cast<int>(m)];
+}
+
+Move parseMove(const std::string& s) {
+    static const char* names[] = {
+        "U","U2","U'","R","R2","R'","F","F2","F'",
+        "D","D2","D'","L","L2","L'","B","B2","B'"
+    };
+    for (int i = 0; i < 18; i++)
+        if (s == names[i]) return static_cast<Move>(i);
+    throw std::invalid_argument("Unknown move: " + s);
+}
+
+std::vector<Move> parseSequence(const std::string& s) {
+    std::vector<Move> moves;
+    std::istringstream ss(s);
+    std::string token;
+    while (ss >> token) moves.push_back(parseMove(token));
+    return moves;
 }
