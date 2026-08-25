@@ -1,3 +1,17 @@
+# Build artifacts
 *.o
 *.exe
+*.obj
+*.out
+*.a
+*.so
+*.dll
 cubealgo
+
+# Local agent / editor / OS state
+.claude/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

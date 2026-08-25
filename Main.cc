@@ -1,14 +1,14 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include <cassert>
+#include <stdexcept>
 #include "CubeState/CubeState.h"
 
 // ─── ANSI color codes ──────────────────────────────────────────────────────────
 #define RESET   "\033[0m"
 #define BOLD    "\033[1m"
 
-// Face color index → ANSI background color
+// Face color index -> ANSI background color
 // 0=White(U) 1=Red(R) 2=Green(F) 3=Yellow(D) 4=Orange(L) 5=Blue(B)
 static const char* FACE_BG[] = {
     "\033[47m",   // White  — U
@@ -19,7 +19,6 @@ static const char* FACE_BG[] = {
     "\033[44m",   // Blue   — B
 };
 
-static const char* FACE_LABEL[] = { "U", "R", "F", "D", "L", "B" };
 
 // ─── Facelet layout ────────────────────────────────────────────────────────────
 // Convert CubeState (cubie model) to 54 facelets
@@ -90,7 +89,9 @@ static void buildFacelets(const CubeState& s, uint8_t f[54]) {
         int piece = s.cp[pos];
         int ori   = s.co[pos];
         for (int sticker = 0; sticker < 3; sticker++) {
-            int colorIdx = cornerColors[piece][(sticker + ori) % 3];
+            // co counts clockwise twists, so the piece's sticker j lands in slot
+            // (j + ori) % 3 — slot `sticker` therefore shows sticker (sticker - ori).
+            int colorIdx = cornerColors[piece][(sticker + 3 - ori) % 3];
             f[cornerFacelets[pos].sticker[sticker]] = colorIdx;
         }
     }
@@ -302,6 +303,229 @@ static void runAllTests() {
             if (!s.isSolved()) allPass = false;
         }
         total++; if (runTest("All moves followed by inverse = solved", allPass)) passed++;
+    }
+
+    // Test 13: every move is a valid permutation (bijective) on both cp and ep
+    {
+        bool allValid = true;
+        for (int mi = 0; mi < 18; mi++) {
+            CubeState s = CubeState::solved().apply(static_cast<Move>(mi));
+            bool seenC[8] = {false};
+            for (int i = 0; i < 8; i++) {
+                if (s.cp[i] > 7 || seenC[s.cp[i]]) allValid = false;
+                else seenC[s.cp[i]] = true;
+            }
+            bool seenE[12] = {false};
+            for (int i = 0; i < 12; i++) {
+                if (s.ep[i] > 11 || seenE[s.ep[i]]) allValid = false;
+                else seenE[s.ep[i]] = true;
+            }
+        }
+        total++; if (runTest("Every move's cp/ep is a valid permutation", allValid)) passed++;
+    }
+
+    // Test 14: every move actually touches 4 corners and 4 edges (no move is a no-op on a piece type)
+    {
+        bool allTouch4 = true;
+        for (int mi = 0; mi < 18; mi++) {
+            CubeState s = CubeState::solved().apply(static_cast<Move>(mi));
+            int cornersMoved = 0, edgesMoved = 0;
+            for (int i = 0; i < 8;  i++) if (s.cp[i] != i || s.co[i] != 0) cornersMoved++;
+            for (int i = 0; i < 12; i++) if (s.ep[i] != i || s.eo[i] != 0) edgesMoved++;
+            if (cornersMoved != 4 || edgesMoved != 4) allTouch4 = false;
+        }
+        total++; if (runTest("Every move affects exactly 4 corners and 4 edges", allTouch4)) passed++;
+    }
+
+    // Test 15: quarter turns have order 4, half turns have order 2, for all six faces
+    {
+        Move quarters[] = {Move::U, Move::R, Move::F, Move::D, Move::L, Move::B};
+        Move halves[]   = {Move::U2, Move::R2, Move::F2, Move::D2, Move::L2, Move::B2};
+        bool allOrder = true;
+        for (Move m : quarters) {
+            CubeState s = CubeState::solved();
+            for (int i = 0; i < 4; i++) s = s.apply(m);
+            if (!s.isSolved()) allOrder = false;
+        }
+        for (Move m : halves) {
+            CubeState s = CubeState::solved().apply(m).apply(m);
+            if (!s.isSolved()) allOrder = false;
+        }
+        total++; if (runTest("Quarter turns order 4, half turns order 2 (all faces)", allOrder)) passed++;
+    }
+
+    // Test 16: opposite faces commute (U/D, R/L, F/B in either order give the same result)
+    {
+        auto sameState = [](const CubeState& a, const CubeState& b) {
+            for (int i = 0; i < 8;  i++) if (a.cp[i] != b.cp[i] || a.co[i] != b.co[i]) return false;
+            for (int i = 0; i < 12; i++) if (a.ep[i] != b.ep[i] || a.eo[i] != b.eo[i]) return false;
+            return true;
+        };
+        Move pairs[][2] = {{Move::U, Move::D}, {Move::R, Move::L}, {Move::F, Move::B}};
+        bool allCommute = true;
+        for (auto& p : pairs) {
+            CubeState a = CubeState::solved().apply(p[0]).apply(p[1]);
+            CubeState b = CubeState::solved().apply(p[1]).apply(p[0]);
+            if (!sameState(a, b)) allCommute = false;
+        }
+        total++; if (runTest("Opposite faces commute (U/D, R/L, F/B)", allCommute)) passed++;
+    }
+
+    // Test 17: adjacent faces do NOT commute (catches tables that are accidentally no-ops or identical)
+    {
+        auto sameState = [](const CubeState& a, const CubeState& b) {
+            for (int i = 0; i < 8;  i++) if (a.cp[i] != b.cp[i] || a.co[i] != b.co[i]) return false;
+            for (int i = 0; i < 12; i++) if (a.ep[i] != b.ep[i] || a.eo[i] != b.eo[i]) return false;
+            return true;
+        };
+        Move pairs[][2] = {{Move::U, Move::R}, {Move::R, Move::F}, {Move::F, Move::D}};
+        bool noneCommute = true;
+        for (auto& p : pairs) {
+            CubeState a = CubeState::solved().apply(p[0]).apply(p[1]);
+            CubeState b = CubeState::solved().apply(p[1]).apply(p[0]);
+            if (sameState(a, b)) noneCommute = false;
+        }
+        total++; if (runTest("Adjacent faces do NOT commute (U/R, R/F, F/D)", noneCommute)) passed++;
+    }
+
+    // Test 18: random walk invariants — permutation parity of cp must equal parity of ep,
+    // and orientation sums must stay 0 mod 3 (corners) / 0 mod 2 (edges) — true for any
+    // sequence of legal moves since these are the group invariants of the physical cube.
+    {
+        auto parity = [](const uint8_t* p, int n) {
+            std::vector<bool> visited(n, false);
+            int swaps = 0;
+            for (int i = 0; i < n; i++) {
+                if (visited[i]) continue;
+                int len = 0, j = i;
+                while (!visited[j]) { visited[j] = true; j = p[j]; len++; }
+                swaps += (len - 1);
+            }
+            return swaps % 2;
+        };
+        // deterministic pseudo-random sequence so the test is reproducible
+        unsigned seed = 12345;
+        auto nextMove = [&]() {
+            seed = seed * 1103515245u + 12345u;
+            return static_cast<Move>((seed / 65536u) % 18);
+        };
+        CubeState s = CubeState::solved();
+        bool allInvariant = true;
+        for (int step = 0; step < 200; step++) {
+            s = s.apply(nextMove());
+            int coSum = 0; for (int i = 0; i < 8;  i++) coSum += s.co[i];
+            int eoSum = 0; for (int i = 0; i < 12; i++) eoSum += s.eo[i];
+            if (coSum % 3 != 0 || eoSum % 2 != 0) allInvariant = false;
+            if (parity(s.cp, 8) != parity(s.ep, 12)) allInvariant = false;
+        }
+        total++; if (runTest("Random walk preserves orientation-sum and permutation-parity invariants", allInvariant)) passed++;
+    }
+
+    // Test 19: superflip. The canonical 20-move optimal solution must leave every
+    // corner solved and all 12 edges in place but flipped. This pins down cp, co, ep
+    // and eo simultaneously against an external, well-known result — a self-consistent
+    // but wrongly-wired move table cannot pass it.
+    {
+        CubeState s = CubeState::solved();
+        for (auto m : parseSequence("U R2 F B R B2 R U2 L B2 R U' D' R2 F R' L B2 U2 F2"))
+            s = s.apply(m);
+        bool ok = true;
+        for (int i = 0; i < 8;  i++) if (s.cp[i] != i || s.co[i] != 0) ok = false;
+        for (int i = 0; i < 12; i++) if (s.ep[i] != i || s.eo[i] != 1) ok = false;
+        total++; if (runTest("Superflip = corners solved, all 12 edges flipped in place", ok)) passed++;
+    }
+
+    // Test 20: known algorithm orders. A move table whose edge cycle runs the wrong
+    // way round still satisfies every self-consistency check, but changes these.
+    {
+        auto orderOf = [](const char* alg) {
+            auto ms = parseSequence(alg);
+            CubeState s = CubeState::solved();
+            for (int k = 1; k <= 1000; k++) {
+                for (auto m : ms) s = s.apply(m);
+                if (s.isSolved()) return k;
+            }
+            return -1;
+        };
+        bool ok = orderOf("R U") == 105 && orderOf("R U'") == 63 &&
+                  orderOf("R U2") == 30 && orderOf("R F") == 105 &&
+                  orderOf("R U R' U' R' F R2 U' R' U' R U R' F'") == 2;  // T-perm
+        total++; if (runTest("Known algorithm orders (R U)=105, (R U')=63, T-perm=2", ok)) passed++;
+    }
+
+    // Test 21: turning a face permutes that face's own nine stickers among themselves,
+    // so the face must still render as one solid color. Covers buildFacelets, which the
+    // pure cubie-model tests above never exercise.
+    {
+        bool ok = true;
+        for (int face = 0; face < 6; face++) {
+            for (int k = 0; k < 3; k++) {
+                CubeState s = CubeState::solved().apply(static_cast<Move>(face * 3 + k));
+                uint8_t f[54];
+                buildFacelets(s, f);
+                for (int i = 0; i < 9; i++) if (f[face * 9 + i] != face) ok = false;
+            }
+        }
+        total++; if (runTest("Turning a face leaves that face a solid color", ok)) passed++;
+    }
+
+    // Test 22: any reachable state has exactly nine stickers of each of the six colors.
+    {
+        unsigned seed = 2024;
+        auto nextMove = [&]() {
+            seed = seed * 1103515245u + 12345u;
+            return static_cast<Move>((seed / 65536u) % 18);
+        };
+        CubeState s = CubeState::solved();
+        bool ok = true;
+        for (int step = 0; step < 500; step++) {
+            s = s.apply(nextMove());
+            uint8_t f[54];
+            buildFacelets(s, f);
+            int count[6] = {0, 0, 0, 0, 0, 0};
+            for (int i = 0; i < 54; i++) { if (f[i] > 5) { ok = false; break; } count[f[i]]++; }
+            for (int c = 0; c < 6; c++) if (count[c] != 9) ok = false;
+            for (int face = 0; face < 6; face++) if (f[face * 9 + 4] != face) ok = false;
+        }
+        total++; if (runTest("Rendered cube always has 9 of each color, centers fixed", ok)) passed++;
+    }
+
+    // Test 23: a random sequence undone move-by-move in reverse returns to solved.
+    {
+        auto inverseOf = [](Move m) {
+            int i = static_cast<int>(m), f = i / 3, k = i % 3;
+            return static_cast<Move>(f * 3 + (k == 1 ? 1 : 2 - k));
+        };
+        unsigned seed = 777;
+        auto nextMove = [&]() {
+            seed = seed * 1103515245u + 12345u;
+            return static_cast<Move>((seed / 65536u) % 18);
+        };
+        bool ok = true;
+        for (int trial = 0; trial < 100 && ok; trial++) {
+            std::vector<Move> seq;
+            for (int i = 0; i < 20; i++) seq.push_back(nextMove());
+            CubeState s = CubeState::solved();
+            for (auto m : seq) s = s.apply(m);
+            for (int i = static_cast<int>(seq.size()) - 1; i >= 0; i--) s = s.apply(inverseOf(seq[i]));
+            if (!s.isSolved()) ok = false;
+        }
+        total++; if (runTest("Random sequences undone by their reverse-inverse", ok)) passed++;
+    }
+
+    // Test 24: parse errors are reported, not silently accepted.
+    {
+        bool ok = true;
+        try { parseMove("X");  ok = false; } catch (const std::invalid_argument&) {}
+        try { parseMove("r");  ok = false; } catch (const std::invalid_argument&) {}
+        try { parseSequence("R U BAD"); ok = false; } catch (const std::invalid_argument&) {}
+        if (!parseSequence("").empty())            ok = false;
+        if (parseSequence("  R   U  ").size() != 2) ok = false;
+        for (int i = 0; i < 18; i++) {
+            Move m = static_cast<Move>(i);
+            if (parseMove(moveName(m)) != m) ok = false;
+        }
+        total++; if (runTest("Move parsing round-trips and rejects bad tokens", ok)) passed++;
     }
 
     std::cout << "\n" << BOLD;
