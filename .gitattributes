@@ -1,0 +1,9 @@
+# Keep line endings LF in the repo and in every working tree, on all platforms.
+# Without this, files committed from Windows land with CRLF and the repo ends up
+# mixed, which shows as spurious whole-file diffs between contributors.
+* text=auto eol=lf
+
+*.cc     text eol=lf
+*.h      text eol=lf
+*.md     text eol=lf
+Makefile text eol=lf
