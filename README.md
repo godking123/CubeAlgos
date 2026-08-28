@@ -49,7 +49,7 @@ The state layer is complete and verified. Current work so far:
 | Notation parsing (`parseMove`, `parseSequence`, `moveName`) | done, throws on bad input |
 | Facelet rendering + terminal visualizer | done |
 | Interactive prompt | done |
-| Test suite | 24 tests, all passing |
+| Test suite | 25 tests, all passing |
 | Solver | not started |
 
 ### Correctness work
@@ -69,8 +69,18 @@ not just against themselves. Two bugs were found and fixed this way:
   `(s + ori)`. Every quarter turn of R/L/F/B drew its own face with wrong corner
   colors. Edges were unaffected, since they rotate mod 2 where both forms agree.
 
+- **The renderer had the two back-face edge stickers swapped.** `BL` wrote to `B[3]`
+  and `BR` to `B[5]`. In the cross layout `B` is unfolded to the *right* of `R`, so on
+  the `B` face the R-side column is on the left and the L-side column is on the right —
+  the two were the wrong way round. `B` and `B'` still rendered solid, so the
+  face-solidity test never saw it; the symptom was `R` painting a white sticker into the
+  middle of the back face instead of into its left column.
+
 All 18 tables were then regenerated from face geometry and compared entry by
-entry, and the two bugs got dedicated regression tests (see [Tests](#tests)).
+entry, and each bug got a dedicated regression test (see [Tests](#tests)). The whole
+54-facelet net after every quarter turn is now pinned against an independent 3D sticker
+model (each sticker carries a position and an outward normal; a turn rotates both),
+which is what catches errors on the four side faces a turn writes into.
 
 ## Building
 
@@ -115,6 +125,21 @@ The eighteen half-turn-metric moves are supported:
 
 Notation is case-sensitive: `r` is rejected rather than silently read as `R`.
 
+## Color scheme
+
+The cubie model is orientation-agnostic — a piece is identified by its slot, never by a
+color — so which color sits on which face is purely a rendering choice, made in
+`FACE_BG` in `Main.cc`.
+
+The visualizer shows the standard scheme held **yellow up, white down, blue front**:
+
+| Face | U | D | F | B | R | L |
+|---|---|---|---|---|---|---|
+| Color | yellow | white | blue | green | red | orange |
+
+That is the usual white-up / green-front cube turned 180° about the R–L axis, so `U`/`D`
+and `F`/`B` swap colors while `R` and `L` keep theirs. To hold it a different way, permute
+`FACE_BG` — nothing else depends on it.
 ## State representation
 
 `CubeState` holds four arrays:
@@ -175,7 +200,7 @@ token, so callers handling user input should wrap them in a `try`/`catch`.
 
 ## Tests
 
-The suite runs automatically on startup — 24 tests covering the group structure
+The suite runs automatically on startup — 25 tests covering the group structure
 (move orders, commuting and non-commuting face pairs, permutation validity,
 orientation-sum and parity invariants), the facelet rendering, and move parsing.
 
@@ -189,6 +214,9 @@ satisfies every self-consistency test:
 - **Face solidity.** Turning a face permutes that face's own nine stickers among
   themselves, so it must still render as one solid color. This is what catches the
   corner-orientation bug in the renderer.
+- **Net ground truth.** The full 54-facelet net after each of `U R F D L B` must match
+  an external geometric model. Face solidity only checks the turning face, so it is
+  blind to a facelet swapped between two of the four side faces — this test is not.
 
 ## Layout
 
@@ -205,7 +233,3 @@ CubeState/MoveTable.cc   the 18 move tables
 The visualizer uses ANSI background colors, including a 256-color code for orange.
 It renders correctly in most modern terminals; on Windows use Windows Terminal
 rather than the legacy console host.
-
-## License
-
-MIT — see [LICENSE](LICENSE).

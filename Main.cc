@@ -8,15 +8,21 @@
 #define RESET   "\033[0m"
 #define BOLD    "\033[1m"
 
-// Face color index -> ANSI background color
-// 0=White(U) 1=Red(R) 2=Green(F) 3=Yellow(D) 4=Orange(L) 5=Blue(B)
+// Face color index -> ANSI background color.
+//
+// The cubie model is orientation-agnostic; which color sits on which face is purely
+// a rendering choice. This is the standard scheme held yellow-up / blue-front, which
+// is the whole cube turned 180° about the R-L axis from the usual white-up /
+// green-front picture (so U<->D and F<->B swap colors, R and L keep theirs).
+//
+// 0=Yellow(U) 1=Red(R) 2=Blue(F) 3=White(D) 4=Orange(L) 5=Green(B)
 static const char* FACE_BG[] = {
-    "\033[47m",   // White  — U
+    "\033[43m",   // Yellow — U
     "\033[41m",   // Red    — R
-    "\033[42m",   // Green  — F
-    "\033[43m",   // Yellow — D
+    "\033[44m",   // Blue   — F
+    "\033[47m",   // White  — D
     "\033[48;5;208m", // Orange — L (256-color)
-    "\033[44m",   // Blue   — B
+    "\033[42m",   // Green  — B
 };
 
 
@@ -34,17 +40,19 @@ static const char* FACE_BG[] = {
 // Edge sticker layout:
 //   UR=0:  U->5, R->1    UF=1:  U->7, F->1    UL=2:  U->3, L->1    UB=3:  U->1, B->1
 //   DR=4:  D->5, R->7    DF=5:  D->1, F->7    DL=6:  D->3, L->7    DB=7:  D->7, B->7
-//   FR=8:  F->5, R->3    FL=9:  F->3, L->5    BL=10: B->3, L->3    BR=11: B->5, R->5
+//   FR=8:  F->5, R->3    FL=9:  F->3, L->5    BL=10: B->5, L->3    BR=11: B->3, R->5
+// B is drawn unfolded to the right of R, so on the B face the R-side column is on
+// the left (index 3) and the L-side column is on the right (index 5).
 
 static void buildFacelets(const CubeState& s, uint8_t f[54]) {
     // Initialize all to face color (centers are fixed)
     // Centers: U=0,R=9,F=18,D=27,L=36,B=45 (index 4 of each face)
-    for (int i = 0; i < 9;  i++) f[0+i]  = 0; // U face default white
-    for (int i = 0; i < 9;  i++) f[9+i]  = 1; // R face default red
-    for (int i = 0; i < 9;  i++) f[18+i] = 2; // F face default green
-    for (int i = 0; i < 9;  i++) f[27+i] = 3; // D face default yellow
-    for (int i = 0; i < 9;  i++) f[36+i] = 4; // L face default orange
-    for (int i = 0; i < 9;  i++) f[45+i] = 5; // B face default blue
+    for (int i = 0; i < 9;  i++) f[0+i]  = 0; // U face
+    for (int i = 0; i < 9;  i++) f[9+i]  = 1; // R face
+    for (int i = 0; i < 9;  i++) f[18+i] = 2; // F face
+    for (int i = 0; i < 9;  i++) f[27+i] = 3; // D face
+    for (int i = 0; i < 9;  i++) f[36+i] = 4; // L face
+    for (int i = 0; i < 9;  i++) f[45+i] = 5; // B face
 
     // Corner stickers: [corner_idx][3] = {face1_sticker_idx, face2_sticker_idx, face3_sticker_idx}
     // Each corner has 3 stickers. Orientation 0 = standard mapping.
@@ -109,8 +117,8 @@ static void buildFacelets(const CubeState& s, uint8_t f[54]) {
         {{34, 52}},  // DB  -> D[7], B[7]
         {{23, 12}},  // FR  -> F[5], R[3]
         {{21, 41}},  // FL  -> F[3], L[5]
-        {{48, 39}},  // BL  -> B[3], L[3]
-        {{50, 14}},  // BR  -> B[5], R[5]
+        {{50, 39}},  // BL  -> B[5], L[3]
+        {{48, 14}},  // BR  -> B[3], R[5]
     };
 
     static const uint8_t edgeColors[12][2] = {
@@ -526,6 +534,32 @@ static void runAllTests() {
             if (parseMove(moveName(m)) != m) ok = false;
         }
         total++; if (runTest("Move parsing round-trips and rejects bad tokens", ok)) passed++;
+    }
+
+    // Test 25: the rendered net after each clockwise quarter turn, pinned against an
+    // external ground truth (an independent 3D sticker model: each sticker carries a
+    // position and an outward normal, and a turn rotates both). Test 21 only checks
+    // the turning face itself, so it never sees the four side faces the turn writes
+    // into — a facelet swapped between two side faces passes everything else.
+    {
+        struct Case { const char* move; const char* net; };
+        static const Case cases[6] = {
+            {"U", "000000000555111111111222222333333333222444444444555555"},
+            {"R", "002002002111111111223223223335335335444444444055055055"},
+            {"F", "000000444011011011222222222111333333443443443555555555"},
+            {"D", "000000000111111222222222444333333333444444555555555111"},
+            {"L", "500500500111111111022022022233233233444444444553553553"},
+            {"B", "111000000113113113222222222333333444044044044555555555"},
+        };
+        bool ok = true;
+        for (const auto& c : cases) {
+            CubeState s = CubeState::solved().apply(parseMove(c.move));
+            uint8_t f[54];
+            buildFacelets(s, f);
+            for (int i = 0; i < 54; i++)
+                if (f[i] != c.net[i] - '0') ok = false;
+        }
+        total++; if (runTest("Rendered net after U/R/F/D/L/B matches external ground truth", ok)) passed++;
     }
 
     std::cout << "\n" << BOLD;
