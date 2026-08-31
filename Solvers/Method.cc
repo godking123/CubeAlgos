@@ -4,7 +4,7 @@
 #include "Roux/Roux.h"
 
 const Method METHODS[3] = {
-    {"Kociemba", "two-phase IDA* search, 20-24 moves", true,
+    {"Kociemba", "two-phase IDA* search, 18-22 moves", true,
      Kociemba::buildTables, Kociemba::solve},
     {"CFOP",     "cross, F2L, OLL, PLL",               false,
      CFOP::buildTables,     CFOP::solve},

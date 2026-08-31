@@ -36,7 +36,10 @@ static int search(
         int lastFace = lastMove / 3;
 
         if (lastMove >= 0 && face == lastFace) continue;
-        if (lastMove >= 0 && opposite[face] == lastFace && face > lastFace) continue;
+        // Opposite faces commute, so only one order of the pair is worth searching.
+        // At depth 0 lastMove belongs to phase 1 rather than to this search, and the
+        // other order is not reachable from here, so the rule does not apply.
+        if (depth > 0 && lastMove >= 0 && opposite[face] == lastFace && face > lastFace) continue;
 
         int newCP = cpMove[cp][m];
         int newEP = epMove[ep][m];
@@ -53,7 +56,7 @@ static int search(
     return minimum;
 }
 
-std::vector<Move> solve(const CubeState& g1) {
+std::vector<Move> solve(const CubeState& g1, int maxMoves, int lastMove) {
     int cp        = Coords::encodeCP(g1);
     int ep        = Coords::encodeEP(g1);
     int slicePerm = Coords::encodeSlicePerm(g1);
@@ -61,11 +64,13 @@ std::vector<Move> solve(const CubeState& g1) {
     std::vector<Move> solution;
     int limit = h(cp, ep, slicePerm);
 
-    while (true) {
-        int result = search(cp, ep, slicePerm, 0, limit, -1, solution);
+    while (limit <= maxMoves) {
+        int result = search(cp, ep, slicePerm, 0, limit, lastMove, solution);
         if (result == -1) return solution;
         if (result == INT_MAX) return {};
         limit = result;
     }
+
+    return {};  // no solution within the budget
 }
 } // namespace Phase2

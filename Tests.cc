@@ -970,9 +970,76 @@ static bool runAllTests() {
         total++; if (runTest("Kociemba::solve solves 20 scrambles end to end", ok)) passed++;
     }
 
+    // Test 73: forEachSolution hands back phase 1 solutions of exactly the length
+    // asked for, and every one of them really lands in G1. Kociemba::solve budgets
+    // phase 2 off that length, so a solution that is a move longer or that stops
+    // short of G1 would quietly corrupt the totals it compares.
+    {
+        bool ok = false, lengthsRight = true, allInG1 = true;
+        CubeState s = CubeState::solved();
+        for (Move m : randomScramble(20, 3)) s = s.apply(m);
+
+        int shortest = (int)Phase1::solve(s).size();
+        Phase1::forEachSolution(s, shortest, [&](const std::vector<Move>& p1) {
+            ok = true;
+            if ((int)p1.size() != shortest) lengthsRight = false;
+
+            CubeState g1 = s;
+            for (Move m : p1) g1 = g1.apply(m);
+            if (Coords::encodeTwist(g1) != 0) allInG1 = false;
+            if (Coords::encodeFlip(g1)  != 0) allInG1 = false;
+            if (Coords::encodeSlice(g1) != 0) allInG1 = false;
+            return true;
+        });
+
+        total++; if (runTest("Phase1::forEachSolution yields exact-length G1 solutions",
+                             ok && lengthsRight && allInG1)) passed++;
+    }
+
+    // Test 74: forEachSolution finds nothing below the optimal length, and stops
+    // early when the callback says so. The first half is what lets Kociemba::solve
+    // start its loop at zero; the second is what lets it quit once it has enough.
+    {
+        CubeState s = CubeState::solved();
+        for (Move m : randomScramble(20, 5)) s = s.apply(m);
+        int shortest = (int)Phase1::solve(s).size();
+
+        bool foundTooShort = false;
+        Phase1::forEachSolution(s, shortest - 1, [&](const std::vector<Move>&) {
+            foundTooShort = true;
+            return true;
+        });
+
+        int seen = 0;
+        bool ranToEnd = Phase1::forEachSolution(s, shortest, [&](const std::vector<Move>&) {
+            seen++;
+            return false;  // stop at the first one
+        });
+
+        total++; if (runTest("Phase1::forEachSolution respects length and early stop",
+                             !foundTooShort && seen == 1 && !ranToEnd)) passed++;
+    }
+
+    // Test 75: phase 2 honours its move budget. Kociemba::solve gives it one move
+    // less than the best total so far, so a search that overshot the budget would
+    // hand back a solution that makes the answer longer, not shorter.
+    {
+        bool ok = true;
+        for (uint64_t seed = 0; seed < 10; seed++) {
+            CubeState s = CubeState::solved();
+            for (Move m : randomScramble(20, seed)) s = s.apply(m);
+            for (Move m : Phase1::solve(s)) s = s.apply(m);
+
+            int optimal = (int)Phase2::solve(s).size();
+            if ((int)Phase2::solve(s, optimal).size() != optimal) ok = false;
+            if (optimal > 0 && !Phase2::solve(s, optimal - 1).empty()) ok = false;
+        }
+        total++; if (runTest("Phase2::solve never exceeds its move budget", ok)) passed++;
+    }
+
     // ─── Method Table Tests ───────────────────────────────────────────────────────
 
-    // Test 73: every method in the table is wired up — a null pointer here would
+    // Test 76: every method in the table is wired up — a null pointer here would
     // crash Main the moment the method was picked.
     {
         bool ok = (METHOD_COUNT == 3);
@@ -983,7 +1050,7 @@ static bool runAllTests() {
         total++; if (runTest("Every method has name, description and both calls", ok)) passed++;
     }
 
-    // Test 74: unimplemented methods return an empty sequence rather than a wrong
+    // Test 77: unimplemented methods return an empty sequence rather than a wrong
     // one. Main gates on Method::implemented, so this pins the two together: a
     // placeholder that started returning moves would be silently trusted.
     {
@@ -997,7 +1064,7 @@ static bool runAllTests() {
         total++; if (runTest("Placeholder methods return no moves", ok)) passed++;
     }
 
-    // Test 75: every implemented method actually solves. This is the check a new
+    // Test 78: every implemented method actually solves. This is the check a new
     // method has to pass to flip its implemented flag to true.
     {
         bool ok = true;
