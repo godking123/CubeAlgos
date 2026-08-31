@@ -5,7 +5,7 @@ CXXFLAGS = -std=c++17 -Wall -O2 -I. -MMD -MP
 
 TARGET = cubealgo
 BUILD  = .build
-SRC    = Main.cc CubeState/CubeState.cc CubeState/MoveTable.cc
+SRC    = Main.cc CubeState/CubeState.cc CubeState/MoveTable.cc CubeState/Coords.cc CubeState/CoordTables.cc
 OBJS   = $(addprefix $(BUILD)/,$(notdir $(SRC:.cc=.o)))
 
 $(TARGET): $(OBJS)

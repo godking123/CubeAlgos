@@ -1,8 +1,4 @@
-#include <iostream>
-#include <string>
-#include <vector>
-#include <stdexcept>
-#include "CubeState/CubeState.h"
+#include "CubeState/CubeAlgos.h"
 
 // ─── ANSI color codes ──────────────────────────────────────────────────────────
 #define RESET   "\033[0m"
@@ -562,6 +558,260 @@ static void runAllTests() {
         total++; if (runTest("Rendered net after U/R/F/D/L/B matches external ground truth", ok)) passed++;
     }
 
+    // ─── Coord + Pruning Table Tests ──────────────────────────────────────────────
+
+    // Test 26: encodeFlip of solved state = 0
+    {
+        CubeState s = CubeState::solved();
+        total++; if (runTest("encodeFlip(solved) == 0", Coords::encodeFlip(s) == 0)) passed++;
+    }
+
+    // Test 27: encodeTwist of solved state = 0
+    {
+        CubeState s = CubeState::solved();
+        total++; if (runTest("encodeTwist(solved) == 0", Coords::encodeTwist(s) == 0)) passed++;
+    }
+
+    // Test 28: encodeSlice of solved state = 0
+    {
+        CubeState s = CubeState::solved();
+        total++; if (runTest("encodeSlice(solved) == 0", Coords::encodeSlice(s) == 0)) passed++;
+    }
+
+    // Test 29: encodeFlip range — every reachable flip value stays in [0, 2047]
+    {
+        bool ok = true;
+        unsigned seed = 99;
+        CubeState s = CubeState::solved();
+        for (int i = 0; i < 500; i++) {
+            seed = seed * 1103515245u + 12345u;
+            s = s.apply(static_cast<Move>((seed / 65536u) % 18));
+            int f = Coords::encodeFlip(s);
+            if (f < 0 || f > 2047) ok = false;
+        }
+        total++; if (runTest("encodeFlip always in [0, 2047]", ok)) passed++;
+    }
+
+    // Test 30: encodeTwist range — every reachable twist value stays in [0, 2186]
+    {
+        bool ok = true;
+        unsigned seed = 42;
+        CubeState s = CubeState::solved();
+        for (int i = 0; i < 500; i++) {
+            seed = seed * 1103515245u + 12345u;
+            s = s.apply(static_cast<Move>((seed / 65536u) % 18));
+            int t = Coords::encodeTwist(s);
+            if (t < 0 || t > 2186) ok = false;
+        }
+        total++; if (runTest("encodeTwist always in [0, 2186]", ok)) passed++;
+    }
+
+    // Test 31: encodeSlice range — every reachable slice value stays in [0, 494]
+    {
+        bool ok = true;
+        unsigned seed = 77;
+        CubeState s = CubeState::solved();
+        for (int i = 0; i < 500; i++) {
+            seed = seed * 1103515245u + 12345u;
+            s = s.apply(static_cast<Move>((seed / 65536u) % 18));
+            int sl = Coords::encodeSlice(s);
+            if (sl < 0 || sl > 494) ok = false;
+        }
+        total++; if (runTest("encodeSlice always in [0, 494]", ok)) passed++;
+    }
+
+    // Test 32: decodeFlip round-trip — encode then decode then re-encode matches
+    {
+        bool ok = true;
+        unsigned seed = 55;
+        CubeState s = CubeState::solved();
+        for (int i = 0; i < 200; i++) {
+            seed = seed * 1103515245u + 12345u;
+            s = s.apply(static_cast<Move>((seed / 65536u) % 18));
+            int flip = Coords::encodeFlip(s);
+            CubeState tmp = CubeState::solved();
+            Coords::decodeFlip(tmp, flip);
+            if (Coords::encodeFlip(tmp) != flip) ok = false;
+        }
+        total++; if (runTest("decodeFlip round-trip: encode→decode→encode matches", ok)) passed++;
+    }
+
+    // Test 33: decodeTwist round-trip
+    {
+        bool ok = true;
+        unsigned seed = 33;
+        CubeState s = CubeState::solved();
+        for (int i = 0; i < 200; i++) {
+            seed = seed * 1103515245u + 12345u;
+            s = s.apply(static_cast<Move>((seed / 65536u) % 18));
+            int twist = Coords::encodeTwist(s);
+            CubeState tmp = CubeState::solved();
+            Coords::decodeTwist(tmp, twist);
+            if (Coords::encodeTwist(tmp) != twist) ok = false;
+        }
+        total++; if (runTest("decodeTwist round-trip: encode→decode→encode matches", ok)) passed++;
+    }
+
+    // Test 34: decodeSlice round-trip
+    {
+        bool ok = true;
+        unsigned seed = 11;
+        CubeState s = CubeState::solved();
+        for (int i = 0; i < 200; i++) {
+            seed = seed * 1103515245u + 12345u;
+            s = s.apply(static_cast<Move>((seed / 65536u) % 18));
+            int sl = Coords::encodeSlice(s);
+            CubeState tmp = CubeState::solved();
+            Coords::decodeSlice(tmp, sl);
+            if (Coords::encodeSlice(tmp) != sl) ok = false;
+        }
+        total++; if (runTest("decodeSlice round-trip: encode→decode→encode matches", ok)) passed++;
+    }
+
+    // Test 35: superflip has flip=2047 (all edges flipped), twist=0, slice=0
+    {
+        CubeState s = CubeState::solved();
+        for (auto m : parseSequence("U R2 F B R B2 R U2 L B2 R U' D' R2 F R' L B2 U2 F2"))
+            s = s.apply(m);
+        bool ok = Coords::encodeFlip(s)  == 2047
+               && Coords::encodeTwist(s) == 0
+               && Coords::encodeSlice(s) == 0;
+        total++; if (runTest("Superflip: flip=2047, twist=0, slice=0", ok)) passed++;
+    }
+
+    // Test 36: flipMove table — applying move via table matches applying move directly
+    {
+        bool ok = true;
+        unsigned seed = 22;
+        CubeState s = CubeState::solved();
+        for (int i = 0; i < 300; i++) {
+            seed = seed * 1103515245u + 12345u;
+            int m = (seed / 65536u) % 18;
+            int flip = Coords::encodeFlip(s);
+            int expected = Coords::encodeFlip(s.apply(static_cast<Move>(m)));
+            int fromTable = flipMove[flip][m];
+            if (fromTable != expected) ok = false;
+            s = s.apply(static_cast<Move>(m));
+        }
+        total++; if (runTest("flipMove table matches direct encodeFlip(apply(move))", ok)) passed++;
+    }
+
+    // Test 37: twistMove table — applying move via table matches applying move directly
+    {
+        bool ok = true;
+        unsigned seed = 44;
+        CubeState s = CubeState::solved();
+        for (int i = 0; i < 300; i++) {
+            seed = seed * 1103515245u + 12345u;
+            int m = (seed / 65536u) % 18;
+            int twist = Coords::encodeTwist(s);
+            int expected = Coords::encodeTwist(s.apply(static_cast<Move>(m)));
+            int fromTable = twistMove[twist][m];
+            if (fromTable != expected) ok = false;
+            s = s.apply(static_cast<Move>(m));
+        }
+        total++; if (runTest("twistMove table matches direct encodeTwist(apply(move))", ok)) passed++;
+    }
+
+    // Test 38: sliceMove table — applying move via table matches applying move directly
+    {
+        bool ok = true;
+        unsigned seed = 66;
+        CubeState s = CubeState::solved();
+        for (int i = 0; i < 300; i++) {
+            seed = seed * 1103515245u + 12345u;
+            int m = (seed / 65536u) % 18;
+            int sl = Coords::encodeSlice(s);
+            int expected = Coords::encodeSlice(s.apply(static_cast<Move>(m)));
+            int fromTable = sliceMove[sl][m];
+            if (fromTable != expected) ok = false;
+            s = s.apply(static_cast<Move>(m));
+        }
+        total++; if (runTest("sliceMove table matches direct encodeSlice(apply(move))", ok)) passed++;
+    }
+
+    // Test 39: pruneFlipSlice[0][0] == 0 (G1 needs 0 moves)
+    {
+        total++; if (runTest("pruneFlipSlice[0][0] == 0", pruneFlipSlice[0][0] == 0)) passed++;
+    }
+
+    // Test 40: pruneTwistSlice[0][0] == 0 (G1 needs 0 moves)
+    {
+        total++; if (runTest("pruneTwistSlice[0][0] == 0", pruneTwistSlice[0][0] == 0)) passed++;
+    }
+
+    // Test 41: pruning table values are all non-negative (no unvisited entries)
+    {
+        bool ok = true;
+        for (int f = 0; f < 2048; f++)
+            for (int s = 0; s < 495; s++)
+                if (pruneFlipSlice[f][s] < 0) ok = false;
+        total++; if (runTest("pruneFlipSlice fully filled (no -1 entries)", ok)) passed++;
+    }
+
+    // Test 42: pruneTwistSlice fully filled
+    {
+        bool ok = true;
+        for (int t = 0; t < 2187; t++)
+            for (int s = 0; s < 495; s++)
+                if (pruneTwistSlice[t][s] < 0) ok = false;
+        total++; if (runTest("pruneTwistSlice fully filled (no -1 entries)", ok)) passed++;
+    }
+
+    // Test 43: pruning table values never exceed 12 (known max for phase 1)
+    {
+        bool ok = true;
+        for (int f = 0; f < 2048; f++)
+            for (int s = 0; s < 495; s++)
+                if (pruneFlipSlice[f][s] > 12) ok = false;
+        for (int t = 0; t < 2187; t++)
+            for (int s = 0; s < 495; s++)
+                if (pruneTwistSlice[t][s] > 12) ok = false;
+        total++; if (runTest("All pruning table values <= 12", ok)) passed++;
+    }
+
+    // Test 44: pruning table is admissible — for any reachable state, the heuristic
+    // never exceeds the true distance to G1. We verify on the superflip (known 20
+    // moves from solved, but only ~6 from G1) and the solved state.
+    {
+        CubeState sol = CubeState::solved();
+        int h_sol = std::max(
+            pruneFlipSlice[Coords::encodeFlip(sol)][Coords::encodeSlice(sol)],
+            pruneTwistSlice[Coords::encodeTwist(sol)][Coords::encodeSlice(sol)]
+        );
+        CubeState superflip = CubeState::solved();
+        for (auto m : parseSequence("U R2 F B R B2 R U2 L B2 R U' D' R2 F R' L B2 U2 F2"))
+            superflip = superflip.apply(m);
+        int h_sf = std::max(
+            pruneFlipSlice[Coords::encodeFlip(superflip)][Coords::encodeSlice(superflip)],
+            pruneTwistSlice[Coords::encodeTwist(superflip)][Coords::encodeSlice(superflip)]
+        );
+        // solved is already G1 so heuristic must be 0
+        // superflip has all edges flipped so heuristic must be > 0
+        bool ok = (h_sol == 0) && (h_sf > 0);
+        total++; if (runTest("Heuristic = 0 at G1, > 0 for superflip", ok)) passed++;
+    }
+
+    // Test 45: coordinate move tables are consistent — applying a move twice via
+    // table gives same result as applying the double move table entry directly
+    {
+        bool ok = true;
+        // check for U: flipMove[x][U] applied twice should equal flipMove[x][U2]
+        int U  = static_cast<int>(Move::U);
+        int U2 = static_cast<int>(Move::U2);
+        int R  = static_cast<int>(Move::R);
+        int R2 = static_cast<int>(Move::R2);
+        for (int f = 0; f < 2048; f++) {
+            if (flipMove[flipMove[f][U]][U] != flipMove[f][U2]) ok = false;
+            if (flipMove[flipMove[f][R]][R] != flipMove[f][R2]) ok = false;
+        }
+        for (int t = 0; t < 2187; t++) {
+            if (twistMove[twistMove[t][U]][U] != twistMove[t][U2]) ok = false;
+            if (twistMove[twistMove[t][R]][R] != twistMove[t][R2]) ok = false;
+        }
+        total++; if (runTest("Move tables: applying X twice == X2 for U and R", ok)) passed++;
+    }
+
     std::cout << "\n" << BOLD;
     if (passed == total)
         std::cout << "\033[32m  All " << total << "/" << total << " tests passed\033[0m\n";
@@ -572,6 +822,10 @@ static void runAllTests() {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 int main() {
+
+    buildCoordTables();
+    buildPruningTables();
+
     // Run tests
     runAllTests();
 
