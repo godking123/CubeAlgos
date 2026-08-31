@@ -1,5 +1,7 @@
 #include "Phase2.h"
-#include "../CubeState/CubeAlgos.h"
+#include "../../CubeState/CubeAlgos.h"
+#include "Coords.h"
+#include "CoordTables.h"
 #include <algorithm>
 #include <climits>
 

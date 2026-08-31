@@ -1,5 +1,5 @@
 #include "CoordTables.h"
-#include "CubeState.h"
+#include "../../CubeState/CubeState.h"
 #include "Coords.h"
 
 // actual memory allocated here once

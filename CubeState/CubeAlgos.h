@@ -1,11 +1,9 @@
 #pragma once
 #include <iostream>
 #include <algorithm>
+#include <chrono>
 #include <string>
 #include <vector>
-#include <chrono>
 #include <stdexcept>
 #include "CubeState.h"
-#include "Coords.h"
-#include "CoordTables.h"
 #include "Scramble.h"

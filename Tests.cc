@@ -1,6 +1,10 @@
 #include "CubeState/CubeAlgos.h"
-#include "Solver/Phase1.h"
-#include "Solver/Phase2.h"
+#include "Solvers/Method.h"
+#include "Solvers/Kociemba/Coords.h"
+#include "Solvers/Kociemba/CoordTables.h"
+#include "Solvers/Kociemba/Kociemba.h"
+#include "Solvers/Kociemba/Phase1.h"
+#include "Solvers/Kociemba/Phase2.h"
 
 // ─── ANSI color codes ──────────────────────────────────────────────────────────
 #define RESET   "\033[0m"
@@ -952,6 +956,64 @@ static bool runAllTests() {
         total++; if (runTest("Phase 1 + Phase 2 solves 20 scrambles", ok)) passed++;
     }
 
+    // Test 72: Kociemba::solve is the two phases joined — the combined sequence must
+    // solve the cube when replayed against the scramble, not just each half in turn.
+    {
+        bool ok = true;
+        for (uint64_t seed = 0; seed < 20; seed++) {
+            CubeState s = CubeState::solved();
+            for (Move m : randomScramble(20, seed)) s = s.apply(m);
+            CubeState check = s;
+            for (Move m : Kociemba::solve(s)) check = check.apply(m);
+            if (!check.isSolved()) ok = false;
+        }
+        total++; if (runTest("Kociemba::solve solves 20 scrambles end to end", ok)) passed++;
+    }
+
+    // ─── Method Table Tests ───────────────────────────────────────────────────────
+
+    // Test 73: every method in the table is wired up — a null pointer here would
+    // crash Main the moment the method was picked.
+    {
+        bool ok = (METHOD_COUNT == 3);
+        for (int i = 0; i < METHOD_COUNT; i++) {
+            if (METHODS[i].name == nullptr || METHODS[i].description == nullptr) ok = false;
+            if (METHODS[i].buildTables == nullptr || METHODS[i].solve == nullptr) ok = false;
+        }
+        total++; if (runTest("Every method has name, description and both calls", ok)) passed++;
+    }
+
+    // Test 74: unimplemented methods return an empty sequence rather than a wrong
+    // one. Main gates on Method::implemented, so this pins the two together: a
+    // placeholder that started returning moves would be silently trusted.
+    {
+        bool ok = true;
+        CubeState s = CubeState::solved();
+        for (Move m : randomScramble(20, 7)) s = s.apply(m);
+        for (int i = 0; i < METHOD_COUNT; i++) {
+            if (METHODS[i].implemented) continue;
+            if (!METHODS[i].solve(s).empty()) ok = false;
+        }
+        total++; if (runTest("Placeholder methods return no moves", ok)) passed++;
+    }
+
+    // Test 75: every implemented method actually solves. This is the check a new
+    // method has to pass to flip its implemented flag to true.
+    {
+        bool ok = true;
+        for (int i = 0; i < METHOD_COUNT; i++) {
+            if (!METHODS[i].implemented) continue;
+            for (uint64_t seed = 0; seed < 10; seed++) {
+                CubeState s = CubeState::solved();
+                for (Move m : randomScramble(20, seed)) s = s.apply(m);
+                CubeState check = s;
+                for (Move m : METHODS[i].solve(s)) check = check.apply(m);
+                if (!check.isSolved()) ok = false;
+            }
+        }
+        total++; if (runTest("Every implemented method solves 10 scrambles", ok)) passed++;
+    }
+
     std::cout << "\n" << BOLD;
     if (passed == total)
         std::cout << "\033[32m  All " << total << "/" << total << " tests passed\033[0m\n";
@@ -963,9 +1025,6 @@ static bool runAllTests() {
 
 // ─── Entry point ──────────────────────────────────────────────────────────────
 int main() {
-    buildCoordTables();
-    buildPruningTables();
-    buildPhase2Tables();
-    buildPhase2PruningTables();
+    Kociemba::buildTables();
     return runAllTests() ? 0 : 1;
 }

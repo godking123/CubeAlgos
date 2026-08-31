@@ -1,11 +1,14 @@
 # CubeAlgos
 
-A 3×3×3 Rubik's Cube solver in C++17, using Kociemba's two-phase algorithm.
+A 3×3×3 Rubik's Cube solver in C++17. Kociemba's two-phase algorithm works today;
+CFOP and Roux are stubbed out behind the same interface.
 
 The cube is represented as a **cubie model** rather than 54 stickers: eight corner
 pieces and twelve edge pieces, each with a position and an orientation. Moves are
 applied by table lookup, which keeps state transitions cheap enough to sit
 underneath the search.
+
+### Kociemba
 
 Solving runs in two phases. Phase 1 reduces the cube to the subgroup
 `G1 = <U, D, R2, L2, F2, B2>` — every piece oriented and the four slice edges back in
@@ -26,11 +29,14 @@ a pruning table built by breadth-first search out from the goal.
 - Canonical random-move scramble generation, seeded or not
 - Coordinate encodings for both phases, and move tables indexed by coordinate
 - Pruning tables for both phases, built by BFS from the goal state
-- A two-phase IDA\* solver that solves any scramble
+- A two-phase IDA\* solver (Kociemba) that solves any scramble
+- A method table so the front end can offer several solving methods
 - A self-checking test suite
 
 **Not in scope yet** — nothing below is implemented:
 
+- CFOP and Roux. Both are placeholders: the directories, headers and method-table
+  entries exist, but `solve` returns nothing and the menu marks them unavailable
 - Optimal solving. The two-phase split finds a good solution, not the shortest one;
   solutions land around 20–24 moves rather than the ≤20 an optimal solver guarantees
 - Searching past the first solution found, which is the usual way to shorten it
@@ -56,8 +62,11 @@ The solver is complete and verified end to end. Current work so far:
 | Phase 1 coordinates, move tables, pruning tables | done |
 | Phase 2 coordinates, move tables, pruning tables | done |
 | `Phase1::solve` / `Phase2::solve` (IDA\*) | done |
-| `cubealgo` CLI | scrambles and solves |
-| Test suite | 71 tests, all passing |
+| `Kociemba::solve` (both phases joined) | done |
+| Method table and `cubealgo` method menu | done |
+| CFOP | placeholder only |
+| Roux | placeholder only |
+| Test suite | 75 tests, all passing |
 | Optimal solver | not started |
 
 ### Correctness work
@@ -104,28 +113,37 @@ make        # builds both ./cubealgo and ./tests
 make test   # builds ./tests and runs it
 ```
 
-`./cubealgo` builds its tables, then scrambles and solves on each ENTER:
+`./cubealgo` builds every method's tables, asks which method to solve with, then
+scrambles and solves on each ENTER:
 
 ```
 $ ./cubealgo
 Building tables...
 Ready.
 
-Two-Phase Solver
-────────────────
+Rubik's Cube Solver
+───────────────────
+    1) Kociemba — two-phase IDA* search, 20-24 moves
+    2) CFOP — cross, F2L, OLL, PLL (not implemented)
+    3) Roux — blocks, CMLL, LSE (not implemented)
+
+Method number: 1
+
+Solving with Kociemba.
 Press ENTER to generate a new scramble and solve it.
-Type 'q' and ENTER to quit.
+Type 'm' to change method, 'q' to quit.
 
 [ Press ENTER ]
-Scramble: D U' F B2 D' F' D' F' U' L U2 L B F2 L' R2 B R' B2 F'
-Solving...
-Phase 1:  B' L2 U L' F' R B U' L
-Phase 2:  L2 D U L2 F2 U2 R2 F2 D' L2 D2
-Moves:    9 + 11 = 20
-Time:     0.62947 ms
-G1:       YES
+Scramble: L2 D B F2 R2 U2 L2 B' D2 U L F U D2 B D L' U' L2 R
+Solving with Kociemba...
+Method:   Kociemba
+Solution: B D' R' U' L2 F D' F2 D' R U2 L2 F2 D2 R2 F2 U' B2 L2 D' B2 U2 L2 B2
+Moves:    24
+Time:     11.7942 ms
 Solved:   YES
 ```
+
+Picking a method that is not implemented leaves the current one in place and says so.
 
 `./tests` builds every table and runs the suite — one line per test plus a summary.
 It exits non-zero when a test fails, so `make test` fails the build with it.
@@ -208,41 +226,61 @@ token, so callers handling user input should wrap them in a `try`/`catch`.
 
 ### Solving
 
-Build the tables once at startup, then call the two phases in order. Phase 2 assumes
-its input is already in G1, so it must be given the state *after* phase 1 is applied.
+Each method exposes `buildTables()` and `solve()`. Build once at startup, then solve:
 
 ```cpp
 #include "CubeState/CubeAlgos.h"
-#include "Solver/Phase1.h"
-#include "Solver/Phase2.h"
+#include "Solvers/Kociemba/Kociemba.h"
 
-buildCoordTables();
-buildPruningTables();
-buildPhase2Tables();
-buildPhase2PruningTables();
+Kociemba::buildTables();
 
 CubeState s = /* a scrambled cube */;
-
-for (Move m : Phase1::solve(s)) s = s.apply(m);   // now in G1
-for (Move m : Phase2::solve(s)) s = s.apply(m);   // now solved
+for (Move m : Kociemba::solve(s)) s = s.apply(m);   // now solved
 ```
+
+The Kociemba phases are also callable individually. Phase 2 assumes its input is
+already in G1, so it must be given the state *after* phase 1 is applied.
 
 | Function | Behavior |
 |---|---|
+| `Kociemba::buildTables()` | fills every coordinate and pruning table; call once |
+| `Kociemba::solve(const CubeState&)` | both phases joined; solves any state |
 | `Phase1::solve(const CubeState&)` | moves reducing any state to G1; ≤ 12 moves |
 | `Phase2::solve(const CubeState&)` | moves solving a G1 state; G1 generators only |
 
-Both return an empty sequence when their goal is already met. The four `build*`
-functions allocate and fill roughly 22 MB of static tables and take well under a
-second; call each exactly once before searching.
+All return an empty sequence when their goal is already met. `Kociemba::buildTables`
+allocates and fills roughly 22 MB of static tables in well under a second.
+
+### Adding a method
+
+`Solvers/Method.h` defines the interface the front end talks to:
+
+```cpp
+struct Method {
+    const char* name;
+    const char* description;
+    bool implemented;
+    void (*buildTables)();
+    std::vector<Move> (*solve)(const CubeState& s);
+};
+```
+
+To add one: create `Solvers/<Name>/`, write `<Name>.h` and `<Name>.cc` exposing
+`buildTables` and `solve` in a `<Name>` namespace, add a row to `METHODS` in
+`Solvers/Method.cc`, and add the source to `SOLVERS` in the Makefile. `Main.cc`
+needs no changes — it iterates the table.
+
+`implemented` is what the menu gates on. Leave it `false` until the method solves;
+a test asserts that placeholders return no moves, and another asserts that every
+method claiming `implemented` actually solves.
 
 ## Tests
 
-The suite is the `tests` binary — 71 tests covering the group structure (move
+The suite is the `tests` binary — 75 tests covering the group structure (move
 orders, commuting and non-commuting face pairs, permutation validity,
 orientation-sum and parity invariants), both phases' coordinate encodings, move
-tables and pruning tables, both solvers, scramble generation, and move parsing. It
-runs in well under a second.
+tables and pruning tables, both solvers, the method table, scramble generation, and
+move parsing. It runs in well under a second.
 
 Several checks are load-bearing, because a move table wired up backwards still
 satisfies every self-consistency test:
@@ -264,21 +302,27 @@ satisfies every self-consistency test:
 ## Layout
 
 ```
-Main.cc                  cubealgo — scramble-and-solve prompt
+Main.cc                  cubealgo — method menu, scramble-and-solve prompt
 Tests.cc                 the test suite
-CubeState/CubeState.h    Move enum, CubeState, parsing declarations
-CubeState/CubeState.cc   state operations and notation parsing
-CubeState/MoveTable.h    MoveTable struct
-CubeState/MoveTable.cc   the 18 move tables
-CubeState/Scramble.h     scramble generation and sequence printing
-CubeState/Scramble.cc
-CubeState/Coords.h       coordinate encode/decode for both phases
-CubeState/Coords.cc
-CubeState/CoordTables.h  move and pruning tables, indexed by coordinate
-CubeState/CoordTables.cc
-CubeState/CubeAlgos.h    umbrella header; includes the whole state layer
-Solver/Phase1.h          phase 1 — reduce to G1
-Solver/Phase1.cc
-Solver/Phase2.h          phase 2 — solve within G1
-Solver/Phase2.cc
+Makefile
+
+CubeState/               the state layer; knows nothing about solving
+  CubeState.h/.cc          Move enum, CubeState, state ops, notation parsing
+  MoveTable.h/.cc          the 18 move tables
+  Scramble.h/.cc           scramble generation and sequence printing
+  CubeAlgos.h              umbrella header for the state layer
+
+Solvers/
+  Method.h                 the interface Main talks to
+  Method.cc                the METHODS table — one row per method
+  Kociemba/                two-phase algorithm; works
+    Coords.h/.cc             coordinate encode/decode for both phases
+    CoordTables.h/.cc        move and pruning tables, indexed by coordinate
+    Phase1.h/.cc             reduce to G1
+    Phase2.h/.cc             solve within G1
+    Kociemba.h/.cc           builds the tables, joins the two phases
+  CFOP/
+    CFOP.h/.cc               placeholder
+  Roux/
+    Roux.h/.cc               placeholder
 ```

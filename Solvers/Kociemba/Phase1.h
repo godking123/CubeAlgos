@@ -2,7 +2,7 @@
 #define PHASE1_H
 
 #include <vector>
-#include "../CubeState/CubeState.h"
+#include "../../CubeState/CubeState.h"
 
 namespace Phase1 {
     std::vector<Move> solve(const CubeState& s);

@@ -1,7 +1,7 @@
 #ifndef COORDS_H
 #define COORDS_H
 
-#include "CubeState.h"
+#include "../../CubeState/CubeState.h"
 
 namespace Coords {
     // Phase 1
