@@ -1,4 +1,6 @@
 #include "CubeState/CubeAlgos.h"
+#include "Solver/Phase1.h"
+#include "Solver/Phase2.h"
 
 // ─── ANSI color codes ──────────────────────────────────────────────────────────
 #define RESET   "\033[0m"
@@ -620,6 +622,336 @@ static bool runAllTests() {
         total++; if (runTest("Scramble edge cases (length 0, 1, negative throws)", ok)) passed++;
     }
 
+    // ─── Phase 2 Coord + Table Tests ──────────────────────────────────────────────
+
+    // the G1 generator set <U, D, R2, L2, F2, B2> — the only moves Phase 2 plays,
+    // and the only ones the EP and SlicePerm coordinates are defined over
+    static const int PHASE2_MOVES[] = {
+        static_cast<int>(Move::U),  static_cast<int>(Move::U2), static_cast<int>(Move::Up),
+        static_cast<int>(Move::D),  static_cast<int>(Move::D2), static_cast<int>(Move::Dp),
+        static_cast<int>(Move::R2), static_cast<int>(Move::L2),
+        static_cast<int>(Move::F2), static_cast<int>(Move::B2)
+    };
+    static const int PHASE2_MOVE_COUNT = 10;
+
+    // Test 47: encodeCP of solved state = 0
+    {
+        CubeState s = CubeState::solved();
+        total++; if (runTest("encodeCP(solved) == 0", Coords::encodeCP(s) == 0)) passed++;
+    }
+
+    // Test 48: encodeEP of solved state = 0
+    {
+        CubeState s = CubeState::solved();
+        total++; if (runTest("encodeEP(solved) == 0", Coords::encodeEP(s) == 0)) passed++;
+    }
+
+    // Test 49: encodeSlicePerm of solved state = 0
+    {
+        CubeState s = CubeState::solved();
+        total++; if (runTest("encodeSlicePerm(solved) == 0", Coords::encodeSlicePerm(s) == 0)) passed++;
+    }
+
+    // Test 50: encodeCP range stays in [0, 40319]
+    {
+        bool ok = true;
+        unsigned seed = 101;
+        CubeState s = CubeState::solved();
+        for (int i = 0; i < 500; i++) {
+            seed = seed * 1103515245u + 12345u;
+            s = s.apply(static_cast<Move>((seed / 65536u) % 18));
+            int v = Coords::encodeCP(s);
+            if (v < 0 || v > 40319) ok = false;
+        }
+        total++; if (runTest("encodeCP always in [0, 40319]", ok)) passed++;
+    }
+
+    // Test 51: encodeEP range stays in [0, 40319]
+    {
+        bool ok = true;
+        unsigned seed = 202;
+        CubeState s = CubeState::solved();
+        for (int i = 0; i < 500; i++) {
+            seed = seed * 1103515245u + 12345u;
+            s = s.apply(static_cast<Move>((seed / 65536u) % 18));
+            int v = Coords::encodeEP(s);
+            if (v < 0 || v > 40319) ok = false;
+        }
+        total++; if (runTest("encodeEP always in [0, 40319]", ok)) passed++;
+    }
+
+    // Test 52: encodeSlicePerm range stays in [0, 23]
+    {
+        bool ok = true;
+        unsigned seed = 303;
+        CubeState s = CubeState::solved();
+        for (int i = 0; i < 500; i++) {
+            seed = seed * 1103515245u + 12345u;
+            s = s.apply(static_cast<Move>((seed / 65536u) % 18));
+            int v = Coords::encodeSlicePerm(s);
+            if (v < 0 || v > 23) ok = false;
+        }
+        total++; if (runTest("encodeSlicePerm always in [0, 23]", ok)) passed++;
+    }
+
+    // Test 53: decodeCP round-trip — all 40320 values
+    {
+        bool ok = true;
+        for (int v = 0; v < 40320; v++) {
+            CubeState tmp = CubeState::solved();
+            Coords::decodeCP(tmp, v);
+            if (Coords::encodeCP(tmp) != v) { ok = false; break; }
+        }
+        total++; if (runTest("decodeCP round-trip: all 40320 values", ok)) passed++;
+    }
+
+    // Test 54: decodeEP round-trip — all 40320 values
+    {
+        bool ok = true;
+        for (int v = 0; v < 40320; v++) {
+            CubeState tmp = CubeState::solved();
+            Coords::decodeEP(tmp, v);
+            if (Coords::encodeEP(tmp) != v) { ok = false; break; }
+        }
+        total++; if (runTest("decodeEP round-trip: all 40320 values", ok)) passed++;
+    }
+
+    // Test 55: decodeSlicePerm round-trip — all 24 values
+    {
+        bool ok = true;
+        for (int v = 0; v < 24; v++) {
+            CubeState tmp = CubeState::solved();
+            Coords::decodeSlicePerm(tmp, v);
+            if (Coords::encodeSlicePerm(tmp) != v) { ok = false; break; }
+        }
+        total++; if (runTest("decodeSlicePerm round-trip: all 24 values", ok)) passed++;
+    }
+
+    // Test 56: cpMove table matches direct encodeCP(apply(move))
+    {
+        bool ok = true;
+        unsigned seed = 88;
+        CubeState s = CubeState::solved();
+        for (int i = 0; i < 300; i++) {
+            seed = seed * 1103515245u + 12345u;
+            int m = (seed / 65536u) % 18;
+            int cp = Coords::encodeCP(s);
+            int expected = Coords::encodeCP(s.apply(static_cast<Move>(m)));
+            if (cpMove[cp][m] != expected) ok = false;
+            s = s.apply(static_cast<Move>(m));
+        }
+        total++; if (runTest("cpMove table matches direct encodeCP(apply(move))", ok)) passed++;
+    }
+
+    // Test 57: epMove table matches direct encodeEP(apply(move)).
+    // Restricted to the G1 generators. EP is a coordinate on the eight U/D-layer
+    // edges only, so a quarter turn of R/F/L/B — which trades a slice edge for a
+    // U/D one — takes the state outside the coordinate's domain and the table's
+    // columns for those moves are meaningless. Phase 2 never plays them.
+    {
+        bool ok = true;
+        unsigned seed = 99;
+        CubeState s = CubeState::solved();
+        for (int i = 0; i < 300; i++) {
+            seed = seed * 1103515245u + 12345u;
+            int m = PHASE2_MOVES[(seed / 65536u) % PHASE2_MOVE_COUNT];
+            int ep = Coords::encodeEP(s);
+            int expected = Coords::encodeEP(s.apply(static_cast<Move>(m)));
+            if (epMove[ep][m] != expected) ok = false;
+            s = s.apply(static_cast<Move>(m));
+        }
+        total++; if (runTest("epMove table matches direct encodeEP(apply(move))", ok)) passed++;
+    }
+
+    // Test 58: slicePermMove table matches direct encodeSlicePerm(apply(move)).
+    // Same restriction as Test 57, for the same reason.
+    {
+        bool ok = true;
+        unsigned seed = 111;
+        CubeState s = CubeState::solved();
+        for (int i = 0; i < 300; i++) {
+            seed = seed * 1103515245u + 12345u;
+            int m = PHASE2_MOVES[(seed / 65536u) % PHASE2_MOVE_COUNT];
+            int sp = Coords::encodeSlicePerm(s);
+            int expected = Coords::encodeSlicePerm(s.apply(static_cast<Move>(m)));
+            if (slicePermMove[sp][m] != expected) ok = false;
+            s = s.apply(static_cast<Move>(m));
+        }
+        total++; if (runTest("slicePermMove table matches direct encodeSlicePerm(apply(move))", ok)) passed++;
+    }
+
+    // Test 59: Phase 2 move tables are consistent — R2 applied twice via table = identity
+    {
+        bool ok = true;
+        int R2 = static_cast<int>(Move::R2);
+        int U2 = static_cast<int>(Move::U2);
+        for (int cp = 0; cp < 40320; cp++) {
+            if (cpMove[cpMove[cp][R2]][R2] != cp) ok = false;
+            if (cpMove[cpMove[cp][U2]][U2] != cp) ok = false;
+        }
+        total++; if (runTest("Phase 2 cpMove: R2 and U2 applied twice = identity", ok)) passed++;
+    }
+
+    // Test 60: in a G1 state, Phase 2 restricted moves keep CP/EP/SlicePerm valid
+    {
+        // the solved state is a valid G1 state: orientations zero, slice edges in slice
+        bool ok = true;
+        CubeState s = CubeState::solved();
+        for (int m : PHASE2_MOVES) {
+            CubeState next = s.apply(static_cast<Move>(m));
+            if (Coords::encodeCP(next) < 0 || Coords::encodeCP(next) > 40319) ok = false;
+            if (Coords::encodeEP(next) < 0 || Coords::encodeEP(next) > 40319) ok = false;
+            if (Coords::encodeSlicePerm(next) < 0 || Coords::encodeSlicePerm(next) > 23) ok = false;
+        }
+        total++; if (runTest("Phase 2 moves keep CP/EP/SlicePerm in valid range", ok)) passed++;
+    }
+
+    // ─── Phase 2 Pruning Table Tests ──────────────────────────────────────────────
+
+    // Test 61: pruneCPSlicePerm fully filled
+    {
+        bool ok = true;
+        for (int c = 0; c < 40320; c++)
+            for (int s = 0; s < 24; s++)
+                if (pruneCPSlicePerm[c][s] < 0) ok = false;
+        total++; if (runTest("pruneCPSlicePerm fully filled (no -1 entries)", ok)) passed++;
+    }
+
+    // Test 62: pruneEPSlicePerm fully filled
+    {
+        bool ok = true;
+        for (int e = 0; e < 40320; e++)
+            for (int s = 0; s < 24; s++)
+                if (pruneEPSlicePerm[e][s] < 0) ok = false;
+        total++; if (runTest("pruneEPSlicePerm fully filled (no -1 entries)", ok)) passed++;
+    }
+
+    // Test 63: pruning table values never exceed 18 (known max for phase 2)
+    {
+        bool ok = true;
+        for (int c = 0; c < 40320; c++)
+            for (int s = 0; s < 24; s++)
+                if (pruneCPSlicePerm[c][s] > 18) ok = false;
+        for (int e = 0; e < 40320; e++)
+            for (int s = 0; s < 24; s++)
+                if (pruneEPSlicePerm[e][s] > 18) ok = false;
+        total++; if (runTest("All phase 2 pruning table values <= 18", ok)) passed++;
+    }
+
+    // Test 64: the heuristic is 0 at the solved state and > 0 away from it. A prune
+    // table filled in the wrong direction still looks full, so this pins the origin.
+    {
+        CubeState sol = CubeState::solved();
+        int h_sol = std::max(
+            pruneCPSlicePerm[Coords::encodeCP(sol)][Coords::encodeSlicePerm(sol)],
+            pruneEPSlicePerm[Coords::encodeEP(sol)][Coords::encodeSlicePerm(sol)]
+        );
+        CubeState g1 = CubeState::solved().apply(Move::R2).apply(Move::F2).apply(Move::U);
+        int h_g1 = std::max(
+            pruneCPSlicePerm[Coords::encodeCP(g1)][Coords::encodeSlicePerm(g1)],
+            pruneEPSlicePerm[Coords::encodeEP(g1)][Coords::encodeSlicePerm(g1)]
+        );
+        bool ok = (h_sol == 0) && (h_g1 > 0);
+        total++; if (runTest("Phase 2 heuristic = 0 at solved, > 0 after R2 F2 U", ok)) passed++;
+    }
+
+    // Test 65: the heuristic never overestimates. For a state reached in n G1 moves
+    // the true distance is at most n, so an admissible heuristic must be <= n. An
+    // inadmissible one makes the search return non-optimal solutions.
+    {
+        bool ok = true;
+        unsigned seed = 555;
+        for (int trial = 0; trial < 200; trial++) {
+            CubeState s = CubeState::solved();
+            int n = 1 + (trial % 8);
+            for (int i = 0; i < n; i++) {
+                seed = seed * 1103515245u + 12345u;
+                s = s.apply(static_cast<Move>(PHASE2_MOVES[(seed / 65536u) % 10]));
+            }
+            int hv = std::max(
+                pruneCPSlicePerm[Coords::encodeCP(s)][Coords::encodeSlicePerm(s)],
+                pruneEPSlicePerm[Coords::encodeEP(s)][Coords::encodeSlicePerm(s)]
+            );
+            if (hv > n) ok = false;
+        }
+        total++; if (runTest("Phase 2 heuristic never overestimates true distance", ok)) passed++;
+    }
+
+    // ─── Solver Tests ─────────────────────────────────────────────────────────────
+
+    // Test 66: phase 1 returns nothing for a state already in G1 — the search must
+    // recognise the goal at depth 0 rather than walking away and back.
+    {
+        auto sol = Phase1::solve(CubeState::solved());
+        total++; if (runTest("Phase1::solve(solved) returns empty", sol.empty())) passed++;
+    }
+
+    // Test 67: phase 1 lands every scramble in G1. This is the property the whole
+    // phase exists for: all orientations zero and the four slice edges in the slice.
+    {
+        bool ok = true;
+        for (uint64_t seed = 0; seed < 30; seed++) {
+            CubeState s = CubeState::solved();
+            for (Move m : randomScramble(20, seed)) s = s.apply(m);
+            for (Move m : Phase1::solve(s)) s = s.apply(m);
+            if (Coords::encodeTwist(s) != 0) ok = false;
+            if (Coords::encodeFlip(s)  != 0) ok = false;
+            if (Coords::encodeSlice(s) != 0) ok = false;
+        }
+        total++; if (runTest("Phase1::solve lands 30 scrambles in G1", ok)) passed++;
+    }
+
+    // Test 68: phase 1 never exceeds 12 moves, the known maximum for this phase.
+    // IDA* with an admissible heuristic returns an optimal solution, so a longer
+    // one means the heuristic or the move tables are wrong.
+    {
+        bool ok = true;
+        for (uint64_t seed = 0; seed < 30; seed++) {
+            CubeState s = CubeState::solved();
+            for (Move m : randomScramble(20, seed)) s = s.apply(m);
+            if (Phase1::solve(s).size() > 12) ok = false;
+        }
+        total++; if (runTest("Phase1::solve never exceeds 12 moves", ok)) passed++;
+    }
+
+    // Test 69: phase 2 returns nothing for the solved state.
+    {
+        auto sol = Phase2::solve(CubeState::solved());
+        total++; if (runTest("Phase2::solve(solved) returns empty", sol.empty())) passed++;
+    }
+
+    // Test 70: phase 2 only ever plays G1 generators. Playing a quarter turn of
+    // R/F/L/B would leave G1 and invalidate the coordinates it searches on.
+    {
+        bool ok = true;
+        for (uint64_t seed = 0; seed < 20; seed++) {
+            CubeState s = CubeState::solved();
+            for (Move m : randomScramble(20, seed)) s = s.apply(m);
+            for (Move m : Phase1::solve(s)) s = s.apply(m);
+            for (Move m : Phase2::solve(s)) {
+                bool legal = false;
+                for (int i = 0; i < 10; i++)
+                    if (static_cast<int>(m) == PHASE2_MOVES[i]) legal = true;
+                if (!legal) ok = false;
+            }
+        }
+        total++; if (runTest("Phase2::solve uses only G1 generators", ok)) passed++;
+    }
+
+    // Test 71: the two phases together solve the cube. This is the end-to-end check
+    // that every table, coordinate and search in the project feeds into.
+    {
+        bool ok = true;
+        for (uint64_t seed = 0; seed < 20; seed++) {
+            CubeState s = CubeState::solved();
+            for (Move m : randomScramble(20, seed)) s = s.apply(m);
+            for (Move m : Phase1::solve(s)) s = s.apply(m);
+            for (Move m : Phase2::solve(s)) s = s.apply(m);
+            if (!s.isSolved()) ok = false;
+        }
+        total++; if (runTest("Phase 1 + Phase 2 solves 20 scrambles", ok)) passed++;
+    }
+
     std::cout << "\n" << BOLD;
     if (passed == total)
         std::cout << "\033[32m  All " << total << "/" << total << " tests passed\033[0m\n";
@@ -633,5 +965,7 @@ static bool runAllTests() {
 int main() {
     buildCoordTables();
     buildPruningTables();
+    buildPhase2Tables();
+    buildPhase2PruningTables();
     return runAllTests() ? 0 : 1;
 }

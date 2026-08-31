@@ -1,18 +1,21 @@
 # CubeAlgos
 
-A 3×3×3 Rubik's Cube state model in C++17.
+A 3×3×3 Rubik's Cube solver in C++17, using Kociemba's two-phase algorithm.
 
 The cube is represented as a **cubie model** rather than 54 stickers: eight corner
 pieces and twelve edge pieces, each with a position and an orientation. Moves are
 applied by table lookup, which keeps state transitions cheap enough to sit
-underneath a search later on.
+underneath the search.
+
+Solving runs in two phases. Phase 1 reduces the cube to the subgroup
+`G1 = <U, D, R2, L2, F2, B2>` — every piece oriented and the four slice edges back in
+the slice — in at most 12 moves. Phase 2 then solves it inside G1, where only those
+ten moves are legal. Each phase is an IDA\* search over packed coordinates, guided by
+a pruning table built by breadth-first search out from the goal.
 
 ---
 
 ## Project scope
-
-This is the **state layer** — the part a solver would be built on top of. It is
-deliberately not a solver.
 
 **In scope, and working today:**
 
@@ -21,12 +24,16 @@ deliberately not a solver.
 - Applying moves and sequences; detecting the solved state
 - Parsing and printing standard move notation
 - Canonical random-move scramble generation, seeded or not
-- A self-checking test suite that runs on startup
+- Coordinate encodings for both phases, and move tables indexed by coordinate
+- Pruning tables for both phases, built by BFS from the goal state
+- A two-phase IDA\* solver that solves any scramble
+- A self-checking test suite
 
 **Not in scope yet** — nothing below is implemented:
 
-- Any solver (no IDA\*, no Kociemba/Thistlethwaite, no pruning tables)
-- Coordinate encodings or move tables indexed by coordinate
+- Optimal solving. The two-phase split finds a good solution, not the shortest one;
+  solutions land around 20–24 moves rather than the ≤20 an optimal solver guarantees
+- Searching past the first solution found, which is the usual way to shorten it
 - State import from a facelet string
 - Slice moves (`M`, `E`, `S`), wide moves (`r`, `u`, …), cube rotations (`x`, `y`, `z`)
 - Pattern databases, algorithm libraries, or optimal-solution search
@@ -38,7 +45,7 @@ being fast.
 
 ## Status
 
-The state layer is complete and verified. Current work so far:
+The solver is complete and verified end to end. Current work so far:
 
 | Area | State |
 |---|---|
@@ -46,9 +53,12 @@ The state layer is complete and verified. Current work so far:
 | All 18 move tables | done, verified against face geometry |
 | Notation parsing (`parseMove`, `parseSequence`, `moveName`) | done, throws on bad input |
 | Scramble generation (`randomScramble`) | done |
-| `cubealgo` CLI | prints scrambles |
-| Test suite | 46 tests, all passing |
-| Solver | not started |
+| Phase 1 coordinates, move tables, pruning tables | done |
+| Phase 2 coordinates, move tables, pruning tables | done |
+| `Phase1::solve` / `Phase2::solve` (IDA\*) | done |
+| `cubealgo` CLI | scrambles and solves |
+| Test suite | 71 tests, all passing |
+| Optimal solver | not started |
 
 ### Correctness work
 
@@ -94,21 +104,31 @@ make        # builds both ./cubealgo and ./tests
 make test   # builds ./tests and runs it
 ```
 
-`./cubealgo` prints scrambles, one per line:
+`./cubealgo` builds its tables, then scrambles and solves on each ENTER:
 
 ```
 $ ./cubealgo
-B2 L D' U' F2 R U2 F R2 D2 L U2 R B' D2 R U2 D2 R' D' L2 B R L F2
+Building tables...
+Ready.
 
-$ ./cubealgo 3 8      # three scrambles, eight moves each
+Two-Phase Solver
+────────────────
+Press ENTER to generate a new scramble and solve it.
+Type 'q' and ENTER to quit.
+
+[ Press ENTER ]
+Scramble: D U' F B2 D' F' D' F' U' L U2 L B F2 L' R2 B R' B2 F'
+Solving...
+Phase 1:  B' L2 U L' F' R B U' L
+Phase 2:  L2 D U L2 F2 U2 R2 F2 D' L2 D2
+Moves:    9 + 11 = 20
+Time:     0.62947 ms
+G1:       YES
+Solved:   YES
 ```
 
-It takes an optional count and length (`./cubealgo --help`), writes nothing but the
-scrambles to stdout, and is safe to pipe.
-
-`./tests` builds the coordinate and pruning tables and runs the suite — one line per
-test plus a summary. It exits non-zero when a test fails, so `make test` fails the
-build with it.
+`./tests` builds every table and runs the suite — one line per test plus a summary.
+It exits non-zero when a test fails, so `make test` fails the build with it.
 
 ## Move notation
 
@@ -186,14 +206,45 @@ if (s.isSolved()) { /* ... */ }
 `parseMove` and `parseSequence` throw `std::invalid_argument` on an unrecognized
 token, so callers handling user input should wrap them in a `try`/`catch`.
 
+### Solving
+
+Build the tables once at startup, then call the two phases in order. Phase 2 assumes
+its input is already in G1, so it must be given the state *after* phase 1 is applied.
+
+```cpp
+#include "CubeState/CubeAlgos.h"
+#include "Solver/Phase1.h"
+#include "Solver/Phase2.h"
+
+buildCoordTables();
+buildPruningTables();
+buildPhase2Tables();
+buildPhase2PruningTables();
+
+CubeState s = /* a scrambled cube */;
+
+for (Move m : Phase1::solve(s)) s = s.apply(m);   // now in G1
+for (Move m : Phase2::solve(s)) s = s.apply(m);   // now solved
+```
+
+| Function | Behavior |
+|---|---|
+| `Phase1::solve(const CubeState&)` | moves reducing any state to G1; ≤ 12 moves |
+| `Phase2::solve(const CubeState&)` | moves solving a G1 state; G1 generators only |
+
+Both return an empty sequence when their goal is already met. The four `build*`
+functions allocate and fill roughly 22 MB of static tables and take well under a
+second; call each exactly once before searching.
+
 ## Tests
 
-The suite is the `tests` binary — 46 tests covering the group structure (move
+The suite is the `tests` binary — 71 tests covering the group structure (move
 orders, commuting and non-commuting face pairs, permutation validity,
-orientation-sum and parity invariants), coordinate encodings, the pruning tables,
-scramble generation, and move parsing.
+orientation-sum and parity invariants), both phases' coordinate encodings, move
+tables and pruning tables, both solvers, scramble generation, and move parsing. It
+runs in well under a second.
 
-Two checks are load-bearing, because a move table wired up backwards still
+Several checks are load-bearing, because a move table wired up backwards still
 satisfies every self-consistency test:
 
 - **Superflip.** The canonical 20-move sequence must leave all eight corners solved
@@ -203,11 +254,17 @@ satisfies every self-consistency test:
 - **Known algorithm orders.** `(R U)` has order 105, `(R U')` 63, `(R U2)` 30, and the
   T-perm order 2. A move table whose edge cycle runs the wrong way still has order 4,
   so these pin the cycle direction against published values.
+- **End-to-end solve.** Twenty scrambles must come back solved after both phases.
+  Every table, coordinate and search in the project feeds into this one assertion.
+- **Heuristic admissibility.** A state reached in `n` moves must have a heuristic of
+  at most `n`. IDA\* returns an optimal solution only if the heuristic never
+  overestimates; an inadmissible one silently returns longer solutions instead of
+  failing, so nothing else would catch it.
 
 ## Layout
 
 ```
-Main.cc                  cubealgo — the scramble-printing front end
+Main.cc                  cubealgo — scramble-and-solve prompt
 Tests.cc                 the test suite
 CubeState/CubeState.h    Move enum, CubeState, parsing declarations
 CubeState/CubeState.cc   state operations and notation parsing
@@ -215,4 +272,13 @@ CubeState/MoveTable.h    MoveTable struct
 CubeState/MoveTable.cc   the 18 move tables
 CubeState/Scramble.h     scramble generation and sequence printing
 CubeState/Scramble.cc
+CubeState/Coords.h       coordinate encode/decode for both phases
+CubeState/Coords.cc
+CubeState/CoordTables.h  move and pruning tables, indexed by coordinate
+CubeState/CoordTables.cc
+CubeState/CubeAlgos.h    umbrella header; includes the whole state layer
+Solver/Phase1.h          phase 1 — reduce to G1
+Solver/Phase1.cc
+Solver/Phase2.h          phase 2 — solve within G1
+Solver/Phase2.cc
 ```

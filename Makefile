@@ -3,7 +3,7 @@ CXXFLAGS = -std=c++17 -Wall -O2 -I. -MMD -MP
 BUILD = .build
 
 CORE = CubeState/CubeState.cc CubeState/MoveTable.cc CubeState/Coords.cc \
-       CubeState/CoordTables.cc CubeState/Scramble.cc Solver/Phase1.cc
+       CubeState/CoordTables.cc CubeState/Scramble.cc Solver/Phase1.cc Solver/Phase2.cc
 
 CORE_OBJS = $(addprefix $(BUILD)/,$(notdir $(CORE:.cc=.o)))
 

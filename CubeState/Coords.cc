@@ -13,6 +13,7 @@ static int choose(int n, int k) {
     return result;
 }
 
+// Phase 1 Coords
 int encodeFlip(const CubeState& s) {
     return s.eo[0]  * (1 << 10) +
            s.eo[1]  * (1 << 9)  +
@@ -83,4 +84,111 @@ void decodeSlice(CubeState& s, int slice) {
     }
 }
 
+// Phase 2 Coords
+int encodeSlicePerm(const CubeState& s) {
+    static const int fact[4] = {1, 1, 2, 6};
+    int result = 0;
+
+    for (int i = 8; i < 12; i++) {
+        int index = i - 8;
+        int curr = s.ep[i];
+        int count = 0;
+        for (int j = i + 1; j < 12; j++) {
+            if (s.ep[j] < curr) {
+                count++;
+            }
+        }
+
+        result += fact[3 - index] * count;
+    }
+    return result;
+}
+
+int encodeCP(const CubeState& s) {
+    static const int fact[8] = {1,1,2,6,24,120,720,5040};
+    int result = 0;
+    for (int i = 0; i < 8; i++) {
+        int count = 0;
+        for (int j = i + 1; j < 8; j++)
+            if (s.cp[j] < s.cp[i]) count++;
+        result += count * fact[7 - i];
+    }
+    return result;
+}
+
+int encodeEP(const CubeState& s) {
+    static const int fact[8] = {1,1,2,6,24,120,720,5040};
+    int result = 0;
+    for (int i = 0; i < 8; i++) {
+        int count = 0;
+        for (int j = i + 1; j < 8; j++)
+            if (s.ep[j] < s.ep[i]) count++;
+        result += count * fact[7 - i];
+    }
+    return result;
+}
+
+void decodeSlicePerm(CubeState& s, int perm) {
+    static const int fact[4] = {1, 1, 2, 6};
+    bool used[4] = {false, false, false, false};
+
+    for (int i = 0; i < 4; i++) {
+        // extract digit for this position
+        int digit = perm / fact[3 - i];
+        perm     %= fact[3 - i];
+
+        // find the digit-th unused value
+        int count = 0;
+        for (int v = 0; v < 4; v++) {
+            if (!used[v]) {
+                if (count == digit) {
+                    s.ep[8 + i] = 8 + v;
+                    used[v] = true;
+                    break;
+                }
+                count++;
+            }
+        }
+    }
+}
+
+void decodeCP(CubeState& s, int cp) {
+    static const int fact[8] = {1,1,2,6,24,120,720,5040};
+    bool used[8] = {};
+    for (int i = 0; i < 8; i++) {
+        int digit = cp / fact[7 - i];
+        cp       %= fact[7 - i];
+        int count = 0;
+        for (int v = 0; v < 8; v++) {
+            if (!used[v]) {
+                if (count == digit) {
+                    s.cp[i] = v;
+                    used[v] = true;
+                    break;
+                }
+                count++;
+            }
+        }
+    }
+}
+
+void decodeEP(CubeState& s, int ep) {
+    static const int fact[8] = {1,1,2,6,24,120,720,5040};
+    bool used[8] = {};
+    for (int i = 0; i < 8; i++) {
+        int digit = ep / fact[7 - i];
+        ep       %= fact[7 - i];
+        int count = 0;
+        for (int v = 0; v < 8; v++) {
+            if (!used[v]) {
+                if (count == digit) {
+                    s.ep[i] = v;
+                    used[v] = true;
+                    break;
+                }
+                count++;
+            }
+        }
+    }
+}
 } // namespace Coords
