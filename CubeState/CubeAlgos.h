@@ -1,10 +1,11 @@
 #pragma once
-
 #include <iostream>
 #include <algorithm>
 #include <string>
 #include <vector>
+#include <chrono>
 #include <stdexcept>
-#include "CubeState/CubeState.h"
-#include "CubeState/Coords.h"
-#include "CubeState/CoordTables.h"
+#include "CubeState.h"
+#include "Coords.h"
+#include "CoordTables.h"
+#include "Scramble.h"

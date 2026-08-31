@@ -8,6 +8,7 @@
 *.so
 *.dll
 cubealgo
+tests
 
 # Scratch: terminal visualizers, not part of the state layer yet
 Viz/

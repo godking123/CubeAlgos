@@ -1,7 +1,6 @@
 # CubeAlgos
 
-A 3×3×3 Rubik's Cube state model in C++17, with a terminal visualizer and an
-interactive move prompt.
+A 3×3×3 Rubik's Cube state model in C++17.
 
 The cube is represented as a **cubie model** rather than 54 stickers: eight corner
 pieces and twelve edge pieces, each with a position and an orientation. Moves are
@@ -21,18 +20,17 @@ deliberately not a solver.
 - All 18 half-turn-metric moves as lookup tables
 - Applying moves and sequences; detecting the solved state
 - Parsing and printing standard move notation
-- A colored terminal visualizer in the standard cross layout
-- An interactive prompt for driving the cube by hand
+- Canonical random-move scramble generation, seeded or not
 - A self-checking test suite that runs on startup
 
 **Not in scope yet** — nothing below is implemented:
 
 - Any solver (no IDA\*, no Kociemba/Thistlethwaite, no pruning tables)
 - Coordinate encodings or move tables indexed by coordinate
-- Scramble generation, or scramble/state import from a facelet string
+- State import from a facelet string
 - Slice moves (`M`, `E`, `S`), wide moves (`r`, `u`, …), cube rotations (`x`, `y`, `z`)
 - Pattern databases, algorithm libraries, or optimal-solution search
-- Any GUI — the visualizer is ANSI terminal output only
+- Any GUI, or any rendering of the cube — `Viz/cubespin` is a separate program
 
 **Non-goals:** cube sizes other than 3×3×3, and speed-optimized bitboard or
 SIMD representations. The model favors being readable and obviously correct over
@@ -47,15 +45,17 @@ The state layer is complete and verified. Current work so far:
 | `CubeState` struct and solved/apply/isSolved | done |
 | All 18 move tables | done, verified against face geometry |
 | Notation parsing (`parseMove`, `parseSequence`, `moveName`) | done, throws on bad input |
-| Facelet rendering + terminal visualizer | done |
-| Interactive prompt | done |
-| Test suite | 25 tests, all passing |
+| Scramble generation (`randomScramble`) | done |
+| `cubealgo` CLI | prints scrambles |
+| Test suite | 46 tests, all passing |
 | Solver | not started |
 
 ### Correctness work
 
-The move tables and the renderer were each checked against external ground truth,
-not just against themselves. Two bugs were found and fixed this way:
+The move tables were checked against external ground truth, not just against
+themselves. Three bugs were found this way. The first is still guarded by a test; the
+other two lived in the facelet net, which has since been removed along with the
+terminal visualizer it fed, and are kept here as a record of how they were found:
 
 - **`F`/`F'` and `D`/`D'` had their edge-permutation arrays swapped with each
   other.** Those two faces turned their corners clockwise but their edges
@@ -64,51 +64,51 @@ not just against themselves. Two bugs were found and fixed this way:
   quarter turns still had order 4, and opposite faces still commuted. The error only
   showed up against a known external result.
 
-- **The renderer twisted corner stickers the wrong way.** A piece's sticker `j`
+- **The facelet net twisted corner stickers the wrong way.** A piece's sticker `j`
   lands in slot `(j + ori) % 3`, so slot `s` shows sticker `(s − ori)`, not
   `(s + ori)`. Every quarter turn of R/L/F/B drew its own face with wrong corner
   colors. Edges were unaffected, since they rotate mod 2 where both forms agree.
 
-- **The renderer had the two back-face edge stickers swapped.** `BL` wrote to `B[3]`
+- **The facelet net had the two back-face edge stickers swapped.** `BL` wrote to `B[3]`
   and `BR` to `B[5]`. In the cross layout `B` is unfolded to the *right* of `R`, so on
   the `B` face the R-side column is on the left and the L-side column is on the right —
   the two were the wrong way round. `B` and `B'` still rendered solid, so the
   face-solidity test never saw it; the symptom was `R` painting a white sticker into the
   middle of the back face instead of into its left column.
 
-All 18 tables were then regenerated from face geometry and compared entry by
-entry, and each bug got a dedicated regression test (see [Tests](#tests)). The whole
-54-facelet net after every quarter turn is now pinned against an independent 3D sticker
-model (each sticker carries a position and an outward normal; a turn rotates both),
-which is what catches errors on the four side faces a turn writes into.
+All 18 tables were then regenerated from face geometry and compared entry by entry.
+The two facelet bugs were caught by pinning the whole 54-facelet net after every
+quarter turn against an independent 3D sticker model (each sticker carries a position
+and an outward normal; a turn rotates both) — that check retired with the net itself,
+but the corrected move tables it validated are what the suite still runs on.
 
 ## Building
 
 Requires a C++17 compiler and `make`.
 
-```sh
-make        # builds ./cubealgo
-./cubealgo
-```
-
-Or directly:
+There are two binaries. They share the same state layer and differ only in which
+file supplies `main()`.
 
 ```sh
-g++ -std=c++17 -O2 -I. -o cubealgo Main.cc CubeState/CubeState.cc CubeState/MoveTable.cc
+make        # builds both ./cubealgo and ./tests
+make test   # builds ./tests and runs it
 ```
 
-Running the binary executes the test suite, prints a few example states, and then
-drops into interactive mode:
+`./cubealgo` prints scrambles, one per line:
 
 ```
-> R U R' U'
-> reset
-> quit
+$ ./cubealgo
+B2 L D' U' F2 R U2 F R2 D2 L U2 R B' D2 R U2 D2 R' D' L2 B R L F2
+
+$ ./cubealgo 3 8      # three scrambles, eight moves each
 ```
 
-Enter any space-separated sequence in standard notation. `reset` (or `r`) returns
-to solved, `quit` (or `q`) exits. Unrecognized tokens are reported without
-changing the cube.
+It takes an optional count and length (`./cubealgo --help`), writes nothing but the
+scrambles to stdout, and is safe to pipe.
+
+`./tests` builds the coordinate and pruning tables and runs the suite — one line per
+test plus a summary. It exits non-zero when a test fails, so `make test` fails the
+build with it.
 
 ## Move notation
 
@@ -125,21 +125,6 @@ The eighteen half-turn-metric moves are supported:
 
 Notation is case-sensitive: `r` is rejected rather than silently read as `R`.
 
-## Color scheme
-
-The cubie model is orientation-agnostic — a piece is identified by its slot, never by a
-color — so which color sits on which face is purely a rendering choice, made in
-`FACE_BG` in `Main.cc`.
-
-The visualizer shows the standard scheme held **yellow up, white down, blue front**:
-
-| Face | U | D | F | B | R | L |
-|---|---|---|---|---|---|---|
-| Color | yellow | white | blue | green | red | orange |
-
-That is the usual white-up / green-front cube turned 180° about the R–L axis, so `U`/`D`
-and `F`/`B` swap colors while `R` and `L` keep theirs. To hold it a different way, permute
-`FACE_BG` — nothing else depends on it.
 ## State representation
 
 `CubeState` holds four arrays:
@@ -194,15 +179,19 @@ if (s.isSolved()) { /* ... */ }
 | `moveName(Move)` | move → notation string |
 | `parseMove(const std::string&)` | notation → move; throws `std::invalid_argument` |
 | `parseSequence(const std::string&)` | whitespace-separated notation → `std::vector<Move>` |
+| `sequenceName(const std::vector<Move>&)` | sequence → space-separated notation |
+| `randomScramble(int length = 25)` | a canonical random scramble; seeded from `std::random_device` |
+| `randomScramble(int length, uint64_t seed)` | the same, reproducible for a given seed |
 
 `parseMove` and `parseSequence` throw `std::invalid_argument` on an unrecognized
 token, so callers handling user input should wrap them in a `try`/`catch`.
 
 ## Tests
 
-The suite runs automatically on startup — 25 tests covering the group structure
-(move orders, commuting and non-commuting face pairs, permutation validity,
-orientation-sum and parity invariants), the facelet rendering, and move parsing.
+The suite is the `tests` binary — 46 tests covering the group structure (move
+orders, commuting and non-commuting face pairs, permutation validity,
+orientation-sum and parity invariants), coordinate encodings, the pruning tables,
+scramble generation, and move parsing.
 
 Two checks are load-bearing, because a move table wired up backwards still
 satisfies every self-consistency test:
@@ -211,25 +200,19 @@ satisfies every self-consistency test:
   and all twelve edges in place but flipped. This pins `cp`, `co`, `ep` and `eo`
   against an external result rather than against each other, and is the only test
   in the suite that catches the `F`/`D` bug described above.
-- **Face solidity.** Turning a face permutes that face's own nine stickers among
-  themselves, so it must still render as one solid color. This is what catches the
-  corner-orientation bug in the renderer.
-- **Net ground truth.** The full 54-facelet net after each of `U R F D L B` must match
-  an external geometric model. Face solidity only checks the turning face, so it is
-  blind to a facelet swapped between two of the four side faces — this test is not.
+- **Known algorithm orders.** `(R U)` has order 105, `(R U')` 63, `(R U2)` 30, and the
+  T-perm order 2. A move table whose edge cycle runs the wrong way still has order 4,
+  so these pin the cycle direction against published values.
 
 ## Layout
 
 ```
-Main.cc                  tests, facelet rendering, interactive prompt
+Main.cc                  cubealgo — the scramble-printing front end
+Tests.cc                 the test suite
 CubeState/CubeState.h    Move enum, CubeState, parsing declarations
 CubeState/CubeState.cc   state operations and notation parsing
 CubeState/MoveTable.h    MoveTable struct
 CubeState/MoveTable.cc   the 18 move tables
+CubeState/Scramble.h     scramble generation and sequence printing
+CubeState/Scramble.cc
 ```
-
-## Terminal requirements
-
-The visualizer uses ANSI background colors, including a 256-color code for orange.
-It renders correctly in most modern terminals; on Windows use Windows Terminal
-rather than the legacy console host.
