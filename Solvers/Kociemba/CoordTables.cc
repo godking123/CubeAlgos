@@ -2,7 +2,7 @@
 #include "../../CubeState/CubeState.h"
 #include "Coords.h"
 
-// actual memory allocated here once
+// Table Storage, Allocated Once
 int flipMove[2048][18];
 int twistMove[2187][18];
 int sliceMove[495][18];
@@ -17,7 +17,7 @@ int pruneTwistSlice[2187][495];
 int pruneCPSlicePerm[40320][24];
 int pruneEPSlicePerm[40320][24];
 
-// phase 2 only turns the G1 generators <U, D, R2, L2, F2, B2>
+// Phase 2 Move Set — G1 Generators Only
 const int PHASE2_MOVES[10] = {
     static_cast<int>(Move::U),  static_cast<int>(Move::U2), static_cast<int>(Move::Up),
     static_cast<int>(Move::D),  static_cast<int>(Move::D2), static_cast<int>(Move::Dp),
@@ -26,7 +26,7 @@ const int PHASE2_MOVES[10] = {
 };
 
 void buildCoordTables() {
-    // flip move table
+    // Flip Move Table
     for (int flip = 0; flip < 2048; flip++) {
         CubeState s = CubeState::solved();
         Coords::decodeFlip(s, flip);
@@ -36,7 +36,7 @@ void buildCoordTables() {
         }
     }
 
-    // twist move table
+    // Twist Move Table
     for (int twist = 0; twist < 2187; twist++) {
         CubeState s = CubeState::solved();
         Coords::decodeTwist(s, twist);
@@ -46,7 +46,7 @@ void buildCoordTables() {
         }
     }
 
-    // slice move table
+    // Slice Move Table
     for (int slice = 0; slice < 495; slice++) {
         CubeState s = CubeState::solved();
         Coords::decodeSlice(s, slice);
@@ -58,7 +58,7 @@ void buildCoordTables() {
 }
 
 void buildPhase2Tables() {
-    // CP move table
+    // CP Move Table
     for (int cp = 0; cp < 40320; cp++) {
         CubeState s = CubeState::solved();
         Coords::decodeCP(s, cp);
@@ -68,7 +68,7 @@ void buildPhase2Tables() {
         }
     }
 
-    // EP move table
+    // EP Move Table
     for (int ep = 0; ep < 40320; ep++) {
         CubeState s = CubeState::solved();
         Coords::decodeEP(s, ep);
@@ -78,7 +78,7 @@ void buildPhase2Tables() {
         }
     }
 
-    // SlicePerm move table
+    // SlicePerm Move Table
     for (int sp = 0; sp < 24; sp++) {
         CubeState s = CubeState::solved();
         Coords::decodeSlicePerm(s, sp);
@@ -90,19 +90,19 @@ void buildPhase2Tables() {
 }
 
 void buildPruningTables() {
-    // flip prune table
+    // Flip Prune Table
     for (int f = 0; f < 2048; f++) {
-            for (int s = 0; s < 495; s++) {
+        for (int s = 0; s < 495; s++) {
             pruneFlipSlice[f][s] = -1;
         }
     }
-    
+
     pruneFlipSlice[0][0] = 0;
     int count = 1;
     int depth = 0;
 
     while (count < 2048 * 495) {
-        // scan for current depth
+        // Scan for Current Depth
         for (int f = 0; f < 2048; f++) {
             for (int s = 0; s < 495; s++) {
                 if (pruneFlipSlice[f][s] == depth) {
@@ -115,26 +115,26 @@ void buildPruningTables() {
                             count++;
                         }
 
-                    }                
+                    }
                 }
             }
         }
         depth++;
     }
 
-    // twist prune table
+    // Twist Prune Table
     for (int f = 0; f < 2187; f++) {
         for (int s = 0; s < 495; s++) {
             pruneTwistSlice[f][s] = -1;
         }
     }
-    
+
     pruneTwistSlice[0][0] = 0;
     count = 1;
     depth = 0;
 
     while (count < 2187 * 495) {
-        // scan for current depth
+        // Scan for Current Depth
         for (int f = 0; f < 2187; f++) {
             for (int s = 0; s < 495; s++) {
                 if (pruneTwistSlice[f][s] == depth) {
@@ -147,7 +147,7 @@ void buildPruningTables() {
                             count++;
                         }
 
-                    }                
+                    }
                 }
             }
         }
@@ -156,7 +156,7 @@ void buildPruningTables() {
 }
 
 void buildPhase2PruningTables() {
-    // cp prune table
+    // CP Prune Table
     for (int c = 0; c < 40320; c++) {
         for (int s = 0; s < 24; s++) {
             pruneCPSlicePerm[c][s] = -1;
@@ -168,7 +168,7 @@ void buildPhase2PruningTables() {
     int depth = 0;
 
     while (count < 40320 * 24) {
-        // scan for current depth
+        // Scan for Current Depth
         for (int c = 0; c < 40320; c++) {
             for (int s = 0; s < 24; s++) {
                 if (pruneCPSlicePerm[c][s] == depth) {
@@ -189,7 +189,7 @@ void buildPhase2PruningTables() {
         depth++;
     }
 
-    // ep prune table
+    // EP Prune Table
     for (int e = 0; e < 40320; e++) {
         for (int s = 0; s < 24; s++) {
             pruneEPSlicePerm[e][s] = -1;
@@ -201,7 +201,7 @@ void buildPhase2PruningTables() {
     depth = 0;
 
     while (count < 40320 * 24) {
-        // scan for current depth
+        // Scan for Current Depth
         for (int e = 0; e < 40320; e++) {
             for (int s = 0; s < 24; s++) {
                 if (pruneEPSlicePerm[e][s] == depth) {

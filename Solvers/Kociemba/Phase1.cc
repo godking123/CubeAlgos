@@ -7,7 +7,7 @@
 
 namespace Phase1 {
 
-// Heuristic for A*
+// IDA* Heuristic — Whichever Prune Table Demands More
 static int h(int twist, int flip, int slice) {
     return std::max(
         pruneFlipSlice[flip][slice],
@@ -22,19 +22,20 @@ static int search(
     std::vector<Move>& solution
 ) {
     int f = depth + h(twist, flip, slice);
- 
+
     if (f > limit) return f;
     if (twist == 0 && flip == 0 && slice == 0) return -1;
 
     int minimum = INT_MAX;
-    static const int opposite[6] = {3, 4, 5, 0, 1, 2};
-    // To prevent undoing a previous move
+    static const int opposite[6] = {3, 4, 5, 0, 1, 2};  // Opposite Face of Each Face
 
     for (int m = 0; m < 18; m++) {
         int face = m / 3;
         int lastFace = lastMove / 3;
 
+        // Never Turn the Same Face Twice in a Row
         if (lastMove >= 0 && face == lastFace) continue;
+        // Opposite Faces Commute, So Only One Order Is Worth Searching
         if (lastMove >= 0 && opposite[face] == lastFace && face > lastFace) continue;
 
         int newTwist = twistMove[twist][m];
@@ -68,11 +69,10 @@ std::vector<Move> solve(const CubeState& scrambled) {
     }
 }
 
-// Walks every sequence of exactly `remaining` more moves, reporting the ones that
-// end in G1. Unlike search() above this does not stop at the first solution and
-// does not accept a shorter one: Kociemba::solve asks for a specific length so it
-// can pair each candidate against a phase 2 budget. Returns false once the
-// callback has asked to stop, which unwinds the whole walk.
+// Walks every sequence of exactly `remaining` moves, reporting the ones ending in G1
+// Unlike search() it never stops early and never takes a shorter solution, since
+// Kociemba::solve wants one length at a time to pair against a phase 2 budget
+// Returns false once the callback asks to stop, unwinding the whole walk
 static bool searchExact(
     int twist, int flip, int slice,
     int remaining, int lastMove,
@@ -83,17 +83,18 @@ static bool searchExact(
         if (twist == 0 && flip == 0 && slice == 0) return onSolution(solution);
         return true;
     }
-    // Not enough moves left to reach G1 from here.
+    // Too Far From G1 to Arrive in Time
     if (h(twist, flip, slice) > remaining) return true;
 
-    static const int opposite[6] = {3, 4, 5, 0, 1, 2};
-    // To prevent undoing a previous move
+    static const int opposite[6] = {3, 4, 5, 0, 1, 2};  // Opposite Face of Each Face
 
     for (int m = 0; m < 18; m++) {
         int face = m / 3;
         int lastFace = lastMove / 3;
 
+        // Never Turn the Same Face Twice in a Row
         if (lastMove >= 0 && face == lastFace) continue;
+        // Opposite Faces Commute, So Only One Order Is Worth Searching
         if (lastMove >= 0 && opposite[face] == lastFace && face > lastFace) continue;
 
         solution.push_back(static_cast<Move>(m));

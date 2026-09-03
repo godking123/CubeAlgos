@@ -7,7 +7,7 @@
 
 namespace Phase2 {
 
-// Heuristic for A*
+// IDA* Heuristic — Whichever Prune Table Demands More
 static int h(int cp, int ep, int slicePerm) {
     return std::max(
         pruneCPSlicePerm[cp][slicePerm],
@@ -22,23 +22,23 @@ static int search(
     std::vector<Move>& solution
 ) {
     int f = depth + h(cp, ep, slicePerm);
- 
+
     if (f > limit) return f;
     if (cp == 0 && ep == 0 && slicePerm == 0) return -1;
 
     int minimum = INT_MAX;
-    static const int opposite[6] = {3, 4, 5, 0, 1, 2};
-    // To prevent undoing a previous move
+    static const int opposite[6] = {3, 4, 5, 0, 1, 2};  // Opposite Face of Each Face
 
     for (int i = 0; i < 10; i++) {
         int m = PHASE2_MOVES[i];
         int face = m / 3;
         int lastFace = lastMove / 3;
 
+        // Never Turn the Same Face Twice in a Row
         if (lastMove >= 0 && face == lastFace) continue;
-        // Opposite faces commute, so only one order of the pair is worth searching.
-        // At depth 0 lastMove belongs to phase 1 rather than to this search, and the
-        // other order is not reachable from here, so the rule does not apply.
+
+        // Opposite Faces Commute, So Only One Order Is Worth Searching
+        // At depth 0 lastMove is phase 1's, and the other order is unreachable
         if (depth > 0 && lastMove >= 0 && opposite[face] == lastFace && face > lastFace) continue;
 
         int newCP = cpMove[cp][m];
@@ -71,6 +71,6 @@ std::vector<Move> solve(const CubeState& g1, int maxMoves, int lastMove) {
         limit = result;
     }
 
-    return {};  // no solution within the budget
+    return {};  // Nothing Within the Budget
 }
 } // namespace Phase2

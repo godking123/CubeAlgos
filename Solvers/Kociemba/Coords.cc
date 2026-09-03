@@ -2,6 +2,7 @@
 
 namespace Coords {
 
+// Binomial Coefficient
 static int choose(int n, int k) {
     if (k < 0 || k > n) return 0;
     if (k == 0 || k == n) return 1;
@@ -133,11 +134,11 @@ void decodeSlicePerm(CubeState& s, int perm) {
     bool used[4] = {false, false, false, false};
 
     for (int i = 0; i < 4; i++) {
-        // extract digit for this position
+        // Extract Digit for This Position
         int digit = perm / fact[3 - i];
         perm     %= fact[3 - i];
 
-        // find the digit-th unused value
+        // Find the Digit-th Unused Value
         int count = 0;
         for (int v = 0; v < 4; v++) {
             if (!used[v]) {

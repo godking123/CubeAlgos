@@ -8,7 +8,7 @@
 #define YELLOW "\033[33m"
 #define RED   "\033[31m"
 
-// print the method list, marking the one in use and the ones not written yet
+// Print the method list, marking the one in use and the ones not written yet
 static void printMethods(int current) {
     for (int i = 0; i < METHOD_COUNT; i++) {
         std::cout << "  " << (i == current ? GREEN "*" RESET : " ")
@@ -20,7 +20,7 @@ static void printMethods(int current) {
     }
 }
 
-// read a method number from the user; returns -1 if they did not pick a new one
+// Read a method number, -1 if the user did not pick a new one
 static int readMethod() {
     std::string input;
     std::cout << "Method number: ";
@@ -56,7 +56,7 @@ int main() {
               << "───────────────────\n"
               << RESET;
 
-    // pick a starting method before any solving happens
+    // Starting Method
     int method = 0;
     printMethods(-1);
     std::cout << "\n";
@@ -87,19 +87,19 @@ int main() {
             continue;
         }
 
-        // generate scramble
+        // Generate Scramble
         auto scrambleMoves = randomScramble(20, seed++);
         std::string scrambleStr = sequenceName(scrambleMoves);
 
         std::cout << "\n" << BOLD << CYAN
                   << "Scramble: " << RESET << scrambleStr << "\n";
 
-        // apply scramble
+        // Apply Scramble
         CubeState state = CubeState::solved();
         for (auto m : scrambleMoves)
             state = state.apply(m);
 
-        // solve with the chosen method
+        // Solve With the Chosen Method
         std::cout << YELLOW << "Solving with " << METHODS[method].name
                   << "..." << RESET << "\n";
 
@@ -109,15 +109,15 @@ int main() {
 
         double ms = std::chrono::duration<double, std::milli>(end - start).count();
 
-        // replay the whole solution against the scramble, so the check covers the
-        // sequence actually printed rather than any intermediate state
+        // Replay the whole solution, so the check covers the printed sequence
+        // rather than an intermediate state
         CubeState check = state;
         for (auto m : solution)
             check = check.apply(m);
 
         bool solved = check.isSolved();
 
-        // print result
+        // Print Result
         std::cout << BOLD << GREEN
                   << "Method:   " << RESET << METHODS[method].name << "\n";
         std::cout << BOLD << GREEN

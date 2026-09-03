@@ -10,6 +10,6 @@ struct MoveTable {
   uint8_t eo[12];
 };
 
-extern const MoveTable MOVE_TABLES[18]; // For each move contains the state transformation
+extern const MoveTable MOVE_TABLES[18];  // State Transformation for Each Move
 
 #endif // MOVE_TABLE_H_

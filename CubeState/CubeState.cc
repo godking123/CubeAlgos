@@ -16,6 +16,7 @@ bool CubeState::isSolved() const {
     return true;
 }
 
+// A move is a permutation composed with an orientation delta
 CubeState CubeState::apply(Move m) const {
     CubeState next;
     const MoveTable& t = MOVE_TABLES[static_cast<int>(m)];
@@ -30,6 +31,7 @@ CubeState CubeState::apply(Move m) const {
     return next;
 }
 
+// Both tables are indexed by the Move enum, so their order is the enum's order
 const char* moveName(Move m) {
     static const char* names[] = {
         "U","U2","U'","R","R2","R'","F","F2","F'",
@@ -45,7 +47,7 @@ Move parseMove(const std::string& s) {
     };
     for (int i = 0; i < 18; i++)
         if (s == names[i]) return static_cast<Move>(i);
-    throw std::invalid_argument("Unknown move: " + s);
+    throw std::invalid_argument("Unknown move: " + s);  // Rejected, Never Skipped
 }
 
 std::vector<Move> parseSequence(const std::string& s) {

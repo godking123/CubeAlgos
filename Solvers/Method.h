@@ -4,14 +4,12 @@
 #include <vector>
 #include "../CubeState/CubeState.h"
 
-// A solving method. Each one lives in its own directory under Solvers/ and exposes
-// the same two calls, so Main can keep them in a table and add a method without
-// touching the menu code.
+// A solving method, one per directory under Solvers/
+// Same two calls for every method, so Main keeps them in a table and never changes
 //
-// buildTables runs once at startup; a method that needs no tables leaves it empty.
-// solve returns the moves that solve the given state, or an empty sequence if the
-// state is already solved. A method with implemented == false is a placeholder:
-// its solve returns nothing and Main says so rather than reporting a bad solve.
+// buildTables runs once at startup, empty for a method that needs no tables
+// solve returns the moves that solve the state, or nothing if it is already solved
+// implemented == false marks a placeholder, which Main reports instead of calling
 struct Method {
     const char* name;
     const char* description;

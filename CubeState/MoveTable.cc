@@ -1,15 +1,15 @@
 #include "MoveTable.h"
 
-// Corner positions: URF=0 UFL=1 ULB=2 UBR=3 DFR=4 DLF=5 DBL=6 DRB=7
-// Edge positions:   UR=0 UF=1 UL=2 UB=3 DR=4 DF=5 DL=6 DB=7 FR=8 FL=9 BL=10 BR=11
+// Corner Positions: URF=0 UFL=1 ULB=2 UBR=3 DFR=4 DLF=5 DBL=6 DRB=7
+// Edge Positions:   UR=0 UF=1 UL=2 UB=3 DR=4 DF=5 DL=6 DB=7 FR=8 FL=9 BL=10 BR=11
 
 const MoveTable MOVE_TABLES[18] = {
-    // U: corners cycle URF->UFL->ULB->UBR, edges cycle UR->UF->UL->UB
+    // U — Corners URF->UFL->ULB->UBR, Edges UR->UF->UL->UB
     {
         {3,0,1,2, 4,5,6,7},   // cp
-        {0,0,0,0, 0,0,0,0},   // co - U moves don't twist corners
+        {0,0,0,0, 0,0,0,0},   // co, No Corner Twist
         {3,0,1,2, 4,5,6,7,8,9,10,11}, // ep
-        {0,0,0,0, 0,0,0,0,0,0,0,0}    // eo - U moves don't flip edges
+        {0,0,0,0, 0,0,0,0,0,0,0,0}    // eo, No Edge Flip
     },
     // U2
     {
@@ -25,10 +25,10 @@ const MoveTable MOVE_TABLES[18] = {
         {1,2,3,0, 4,5,6,7,8,9,10,11},
         {0,0,0,0, 0,0,0,0,0,0,0,0}
     },
-    // R: corners cycle URF->UBR->DRB->DFR, edges cycle UR->BR->DR->FR
+    // R — Corners URF->UBR->DRB->DFR, Edges UR->BR->DR->FR
     {
         {4,1,2,0, 7,5,6,3},
-        {2,0,0,1, 1,0,0,2},   // co deltas for R
+        {2,0,0,1, 1,0,0,2},   // co Deltas
         {8,1,2,3, 11,5,6,7, 4,9,10,0},
         {0,0,0,0, 0,0,0,0,0,0,0,0}
     },
@@ -46,7 +46,7 @@ const MoveTable MOVE_TABLES[18] = {
         {11,1,2,3, 8,5,6,7, 0,9,10,4},
         {0,0,0,0, 0,0,0,0,0,0,0,0}
     },
-    // F: corners cycle UFL->URF->DFR->DLF, edges cycle UF->FR->DF->FL, all flip
+    // F — Corners UFL->URF->DFR->DLF, Edges UF->FR->DF->FL, All Flip
     {
         {1,5,2,3, 0,4,6,7},
         {1,2,0,0, 2,1,0,0},
@@ -67,7 +67,7 @@ const MoveTable MOVE_TABLES[18] = {
         {0,8,2,3, 4,9,6,7, 5,1,10,11},
         {0,1,0,0, 0,1,0,0, 1,1,0,0}
     },
-    // D: corners cycle DFR->DRB->DBL->DLF, edges cycle DR->DB->DL->DF
+    // D — Corners DFR->DRB->DBL->DLF, Edges DR->DB->DL->DF
     {
         {0,1,2,3, 5,6,7,4},
         {0,0,0,0, 0,0,0,0},
@@ -88,7 +88,7 @@ const MoveTable MOVE_TABLES[18] = {
         {0,1,2,3, 7,4,5,6, 8,9,10,11},
         {0,0,0,0, 0,0,0,0,0,0,0,0}
     },
-    // L: corners cycle UFL->DLF->DBL->ULB, edges cycle UL->FL->DL->BL
+    // L — Corners UFL->DLF->DBL->ULB, Edges UL->FL->DL->BL
     {
         {0,2,6,3, 4,1,5,7},
         {0,1,2,0, 0,2,1,0},
@@ -109,7 +109,7 @@ const MoveTable MOVE_TABLES[18] = {
         {0,1,9,3, 4,5,10,7, 8,6,2,11},
         {0,0,0,0, 0,0,0,0,0,0,0,0}
     },
-    // B: corners cycle UBR->ULB->DBL->DRB, edges cycle UB->BL->DB->BR, all flip
+    // B — Corners UBR->ULB->DBL->DRB, Edges UB->BL->DB->BR, All Flip
     {
         {0,1,3,7, 4,5,2,6},
         {0,0,1,2, 0,0,2,1},

@@ -6,7 +6,7 @@
 #include "Solvers/Kociemba/Phase1.h"
 #include "Solvers/Kociemba/Phase2.h"
 
-// ─── ANSI color codes ──────────────────────────────────────────────────────────
+// ─── ANSI Color Codes ──────────────────────────────────────────────────────────
 #define RESET   "\033[0m"
 #define BOLD    "\033[1m"
 
@@ -20,8 +20,7 @@ static bool runTest(const char* name, bool condition) {
     return condition;
 }
 
-// Returns true when every test passed, so the binary's exit status can carry the
-// result to `make test` and to CI.
+// True when every test passed, so the exit status carries the result to `make test`
 static bool runAllTests() {
     std::cout << BOLD << "\n=== Cube State Tests ===\n\n" << RESET;
     int passed = 0, total = 0;
@@ -148,7 +147,7 @@ static bool runAllTests() {
         total++; if (runTest("Every move's cp/ep is a valid permutation", allValid)) passed++;
     }
 
-    // Test 14: every move actually touches 4 corners and 4 edges (no move is a no-op on a piece type)
+    // Test 14: every move touches 4 corners and 4 edges, no move is a no-op on a piece type
     {
         bool allTouch4 = true;
         for (int mi = 0; mi < 18; mi++) {
@@ -195,7 +194,7 @@ static bool runAllTests() {
         total++; if (runTest("Opposite faces commute (U/D, R/L, F/B)", allCommute)) passed++;
     }
 
-    // Test 17: adjacent faces do NOT commute (catches tables that are accidentally no-ops or identical)
+    // Test 17: adjacent faces do NOT commute, catching no-op or duplicated tables
     {
         auto sameState = [](const CubeState& a, const CubeState& b) {
             for (int i = 0; i < 8;  i++) if (a.cp[i] != b.cp[i] || a.co[i] != b.co[i]) return false;
@@ -212,9 +211,9 @@ static bool runAllTests() {
         total++; if (runTest("Adjacent faces do NOT commute (U/R, R/F, F/D)", noneCommute)) passed++;
     }
 
-    // Test 18: random walk invariants — permutation parity of cp must equal parity of ep,
-    // and orientation sums must stay 0 mod 3 (corners) / 0 mod 2 (edges) — true for any
-    // sequence of legal moves since these are the group invariants of the physical cube.
+    // Test 18: random walk invariants — cp parity equals ep parity, orientation sums stay
+    // 0 mod 3 for corners and 0 mod 2 for edges
+    // These hold for any legal sequence, they are the group invariants of the cube
     {
         auto parity = [](const uint8_t* p, int n) {
             std::vector<bool> visited(n, false);
@@ -227,7 +226,7 @@ static bool runAllTests() {
             }
             return swaps % 2;
         };
-        // deterministic pseudo-random sequence so the test is reproducible
+        // Deterministic sequence so the test is reproducible
         unsigned seed = 12345;
         auto nextMove = [&]() {
             seed = seed * 1103515245u + 12345u;
@@ -245,10 +244,10 @@ static bool runAllTests() {
         total++; if (runTest("Random walk preserves orientation-sum and permutation-parity invariants", allInvariant)) passed++;
     }
 
-    // Test 19: superflip. The canonical 20-move optimal solution must leave every
-    // corner solved and all 12 edges in place but flipped. This pins down cp, co, ep
-    // and eo simultaneously against an external, well-known result — a self-consistent
-    // but wrongly-wired move table cannot pass it.
+    // Test 19: superflip — the canonical 20-move solution leaves every corner solved and
+    // all 12 edges in place but flipped
+    // Pins cp, co, ep and eo at once against an external result, which a self-consistent
+    // but wrongly-wired table cannot pass
     {
         CubeState s = CubeState::solved();
         for (auto m : parseSequence("U R2 F B R B2 R U2 L B2 R U' D' R2 F R' L B2 U2 F2"))
@@ -259,8 +258,8 @@ static bool runAllTests() {
         total++; if (runTest("Superflip = corners solved, all 12 edges flipped in place", ok)) passed++;
     }
 
-    // Test 20: known algorithm orders. A move table whose edge cycle runs the wrong
-    // way round still satisfies every self-consistency check, but changes these.
+    // Test 20: known algorithm orders — an edge cycle running the wrong way still passes
+    // every self-consistency check, but changes these
     {
         auto orderOf = [](const char* alg) {
             auto ms = parseSequence(alg);
@@ -278,7 +277,7 @@ static bool runAllTests() {
     }
 
 
-    // Test 21: a random sequence undone move-by-move in reverse returns to solved.
+    // Test 21: a random sequence undone in reverse returns to solved
     {
         auto inverseOf = [](Move m) {
             int i = static_cast<int>(m), f = i / 3, k = i % 3;
@@ -301,7 +300,7 @@ static bool runAllTests() {
         total++; if (runTest("Random sequences undone by their reverse-inverse", ok)) passed++;
     }
 
-    // Test 22: parse errors are reported, not silently accepted.
+    // Test 22: parse errors are reported, not silently accepted
     {
         bool ok = true;
         try { parseMove("X");  ok = false; } catch (const std::invalid_argument&) {}
@@ -528,9 +527,8 @@ static bool runAllTests() {
         total++; if (runTest("All pruning table values <= 12", ok)) passed++;
     }
 
-    // Test 41: pruning table is admissible — for any reachable state, the heuristic
-    // never exceeds the true distance to G1. We verify on the superflip (known 20
-    // moves from solved, but only ~6 from G1) and the solved state.
+    // Test 41: pruning table is admissible — the heuristic never exceeds the true
+    // distance to G1, checked on solved and on superflip
     {
         CubeState sol = CubeState::solved();
         int h_sol = std::max(
@@ -544,17 +542,16 @@ static bool runAllTests() {
             pruneFlipSlice[Coords::encodeFlip(superflip)][Coords::encodeSlice(superflip)],
             pruneTwistSlice[Coords::encodeTwist(superflip)][Coords::encodeSlice(superflip)]
         );
-        // solved is already G1 so heuristic must be 0
-        // superflip has all edges flipped so heuristic must be > 0
+        // Solved is already G1, so 0; superflip has every edge flipped, so > 0
         bool ok = (h_sol == 0) && (h_sf > 0);
         total++; if (runTest("Heuristic = 0 at G1, > 0 for superflip", ok)) passed++;
     }
 
-    // Test 42: coordinate move tables are consistent — applying a move twice via
-    // table gives same result as applying the double move table entry directly
+    // Test 42: coordinate move tables are consistent — a move applied twice via table
+    // matches the double move entry
     {
         bool ok = true;
-        // check for U: flipMove[x][U] applied twice should equal flipMove[x][U2]
+        // flipMove[x][U] applied twice must equal flipMove[x][U2]
         int U  = static_cast<int>(Move::U);
         int U2 = static_cast<int>(Move::U2);
         int R  = static_cast<int>(Move::R);
@@ -570,8 +567,8 @@ static bool runAllTests() {
         total++; if (runTest("Move tables: applying X twice == X2 for U and R", ok)) passed++;
     }
 
-    // Test 43: a scramble has the requested length, uses only legal moves, and is
-    // reproducible — the same seed must give the same sequence.
+    // Test 43: a scramble has the requested length, uses legal moves only, and repeats
+    // for the same seed
     {
         auto a = randomScramble(25, 777);
         auto b = randomScramble(25, 777);
@@ -582,9 +579,8 @@ static bool runAllTests() {
         total++; if (runTest("Scramble: length, determinism by seed, legal moves", ok)) passed++;
     }
 
-    // Test 44: scrambles are canonical — no two consecutive moves on the same face,
-    // and no `R L R` triple, where the outer two commute past the middle one and the
-    // sequence is really one move shorter than it counts.
+    // Test 44: scrambles are canonical — no two consecutive moves on one face, and no
+    // `R L R` triple, which commutes down to R2 L and is really one move shorter
     {
         bool ok = true;
         for (uint64_t seed = 0; seed < 200; seed++) {
@@ -601,9 +597,8 @@ static bool runAllTests() {
         total++; if (runTest("Scramble is canonical (no same-face or A B A repeats)", ok)) passed++;
     }
 
-    // Test 45: scrambles actually scramble, and round-trip through notation. A
-    // 25-move canonical sequence cannot cancel back to solved, and printing it then
-    // reparsing it must give the same moves back.
+    // Test 45: scrambles actually scramble and round-trip through notation — a 25-move
+    // canonical sequence cannot cancel back to solved
     {
         bool ok = true;
         for (uint64_t seed = 0; seed < 200; seed++) {
@@ -616,8 +611,7 @@ static bool runAllTests() {
         total++; if (runTest("Scramble leaves cube unsolved; notation round-trips", ok)) passed++;
     }
 
-    // Test 46: edge cases — length 0 is the empty sequence (and the identity),
-    // length 1 is a single move, and a negative length is rejected.
+    // Test 46: edge cases — length 0 is empty, length 1 is one move, negative is rejected
     {
         bool ok = randomScramble(0, 1).empty() && sequenceName({}).empty()
                && randomScramble(1, 1).size() == 1;
@@ -628,8 +622,8 @@ static bool runAllTests() {
 
     // ─── Phase 2 Coord + Table Tests ──────────────────────────────────────────────
 
-    // the G1 generator set <U, D, R2, L2, F2, B2> — the only moves Phase 2 plays,
-    // and the only ones the EP and SlicePerm coordinates are defined over
+    // The G1 generators <U, D, R2, L2, F2, B2>, the only moves phase 2 plays and the
+    // only ones EP and SlicePerm are defined over
     static const int PHASE2_MOVES[] = {
         static_cast<int>(Move::U),  static_cast<int>(Move::U2), static_cast<int>(Move::Up),
         static_cast<int>(Move::D),  static_cast<int>(Move::D2), static_cast<int>(Move::Dp),
@@ -747,11 +741,10 @@ static bool runAllTests() {
         total++; if (runTest("cpMove table matches direct encodeCP(apply(move))", ok)) passed++;
     }
 
-    // Test 57: epMove table matches direct encodeEP(apply(move)).
-    // Restricted to the G1 generators. EP is a coordinate on the eight U/D-layer
-    // edges only, so a quarter turn of R/F/L/B — which trades a slice edge for a
-    // U/D one — takes the state outside the coordinate's domain and the table's
-    // columns for those moves are meaningless. Phase 2 never plays them.
+    // Test 57: epMove table matches direct encodeEP(apply(move))
+    // G1 generators only: EP covers the eight U/D-layer edges, so a quarter turn of
+    // R/F/L/B trades a slice edge for a U/D one and leaves the coordinate's domain
+    // Those columns are meaningless, and phase 2 never plays them
     {
         bool ok = true;
         unsigned seed = 99;
@@ -767,8 +760,8 @@ static bool runAllTests() {
         total++; if (runTest("epMove table matches direct encodeEP(apply(move))", ok)) passed++;
     }
 
-    // Test 58: slicePermMove table matches direct encodeSlicePerm(apply(move)).
-    // Same restriction as Test 57, for the same reason.
+    // Test 58: slicePermMove table matches direct encodeSlicePerm(apply(move))
+    // Same restriction as Test 57, for the same reason
     {
         bool ok = true;
         unsigned seed = 111;
@@ -798,7 +791,7 @@ static bool runAllTests() {
 
     // Test 60: in a G1 state, Phase 2 restricted moves keep CP/EP/SlicePerm valid
     {
-        // the solved state is a valid G1 state: orientations zero, slice edges in slice
+        // Solved is a valid G1 state, orientations zero and slice edges in the slice
         bool ok = true;
         CubeState s = CubeState::solved();
         for (int m : PHASE2_MOVES) {
@@ -842,8 +835,8 @@ static bool runAllTests() {
         total++; if (runTest("All phase 2 pruning table values <= 18", ok)) passed++;
     }
 
-    // Test 64: the heuristic is 0 at the solved state and > 0 away from it. A prune
-    // table filled in the wrong direction still looks full, so this pins the origin.
+    // Test 64: the heuristic is 0 at solved and > 0 away from it — a table filled in the
+    // wrong direction still looks full, so this pins the origin
     {
         CubeState sol = CubeState::solved();
         int h_sol = std::max(
@@ -859,9 +852,9 @@ static bool runAllTests() {
         total++; if (runTest("Phase 2 heuristic = 0 at solved, > 0 after R2 F2 U", ok)) passed++;
     }
 
-    // Test 65: the heuristic never overestimates. For a state reached in n G1 moves
-    // the true distance is at most n, so an admissible heuristic must be <= n. An
-    // inadmissible one makes the search return non-optimal solutions.
+    // Test 65: the heuristic never overestimates — a state reached in n G1 moves is at
+    // most n from solved, so an admissible heuristic must be <= n
+    // An inadmissible one makes the search return non-optimal solutions
     {
         bool ok = true;
         unsigned seed = 555;
@@ -883,15 +876,15 @@ static bool runAllTests() {
 
     // ─── Solver Tests ─────────────────────────────────────────────────────────────
 
-    // Test 66: phase 1 returns nothing for a state already in G1 — the search must
-    // recognise the goal at depth 0 rather than walking away and back.
+    // Test 66: phase 1 returns nothing for a state already in G1, recognising the goal at
+    // depth 0 rather than walking away and back
     {
         auto sol = Phase1::solve(CubeState::solved());
         total++; if (runTest("Phase1::solve(solved) returns empty", sol.empty())) passed++;
     }
 
-    // Test 67: phase 1 lands every scramble in G1. This is the property the whole
-    // phase exists for: all orientations zero and the four slice edges in the slice.
+    // Test 67: phase 1 lands every scramble in G1 — orientations zero and the four slice
+    // edges in the slice, the property the phase exists for
     {
         bool ok = true;
         for (uint64_t seed = 0; seed < 30; seed++) {
@@ -905,9 +898,9 @@ static bool runAllTests() {
         total++; if (runTest("Phase1::solve lands 30 scrambles in G1", ok)) passed++;
     }
 
-    // Test 68: phase 1 never exceeds 12 moves, the known maximum for this phase.
-    // IDA* with an admissible heuristic returns an optimal solution, so a longer
-    // one means the heuristic or the move tables are wrong.
+    // Test 68: phase 1 never exceeds 12 moves, the known maximum
+    // IDA* with an admissible heuristic is optimal, so a longer one means the heuristic
+    // or the move tables are wrong
     {
         bool ok = true;
         for (uint64_t seed = 0; seed < 30; seed++) {
@@ -918,14 +911,14 @@ static bool runAllTests() {
         total++; if (runTest("Phase1::solve never exceeds 12 moves", ok)) passed++;
     }
 
-    // Test 69: phase 2 returns nothing for the solved state.
+    // Test 69: phase 2 returns nothing for the solved state
     {
         auto sol = Phase2::solve(CubeState::solved());
         total++; if (runTest("Phase2::solve(solved) returns empty", sol.empty())) passed++;
     }
 
-    // Test 70: phase 2 only ever plays G1 generators. Playing a quarter turn of
-    // R/F/L/B would leave G1 and invalidate the coordinates it searches on.
+    // Test 70: phase 2 plays G1 generators only — a quarter turn of R/F/L/B would leave
+    // G1 and invalidate the coordinates it searches on
     {
         bool ok = true;
         for (uint64_t seed = 0; seed < 20; seed++) {
@@ -942,8 +935,8 @@ static bool runAllTests() {
         total++; if (runTest("Phase2::solve uses only G1 generators", ok)) passed++;
     }
 
-    // Test 71: the two phases together solve the cube. This is the end-to-end check
-    // that every table, coordinate and search in the project feeds into.
+    // Test 71: the two phases together solve the cube, the end-to-end check every table,
+    // coordinate and search feeds into
     {
         bool ok = true;
         for (uint64_t seed = 0; seed < 20; seed++) {
@@ -956,8 +949,8 @@ static bool runAllTests() {
         total++; if (runTest("Phase 1 + Phase 2 solves 20 scrambles", ok)) passed++;
     }
 
-    // Test 72: Kociemba::solve is the two phases joined — the combined sequence must
-    // solve the cube when replayed against the scramble, not just each half in turn.
+    // Test 72: Kociemba::solve is the two phases joined — the combined sequence must solve
+    // the cube when replayed, not just each half in turn
     {
         bool ok = true;
         for (uint64_t seed = 0; seed < 20; seed++) {
@@ -970,10 +963,10 @@ static bool runAllTests() {
         total++; if (runTest("Kociemba::solve solves 20 scrambles end to end", ok)) passed++;
     }
 
-    // Test 73: forEachSolution hands back phase 1 solutions of exactly the length
-    // asked for, and every one of them really lands in G1. Kociemba::solve budgets
-    // phase 2 off that length, so a solution that is a move longer or that stops
-    // short of G1 would quietly corrupt the totals it compares.
+    // Test 73: forEachSolution returns solutions of exactly the length asked for, all
+    // landing in G1
+    // Kociemba::solve budgets phase 2 off that length, so a wrong length or a state short
+    // of G1 corrupts every total it compares
     {
         bool ok = false, lengthsRight = true, allInG1 = true;
         CubeState s = CubeState::solved();
@@ -996,9 +989,9 @@ static bool runAllTests() {
                              ok && lengthsRight && allInG1)) passed++;
     }
 
-    // Test 74: forEachSolution finds nothing below the optimal length, and stops
-    // early when the callback says so. The first half is what lets Kociemba::solve
-    // start its loop at zero; the second is what lets it quit once it has enough.
+    // Test 74: forEachSolution finds nothing below the optimal length, and stops when the
+    // callback says so
+    // The first lets Kociemba::solve start at zero, the second lets it quit early
     {
         CubeState s = CubeState::solved();
         for (Move m : randomScramble(20, 5)) s = s.apply(m);
@@ -1020,9 +1013,8 @@ static bool runAllTests() {
                              !foundTooShort && seen == 1 && !ranToEnd)) passed++;
     }
 
-    // Test 75: phase 2 honours its move budget. Kociemba::solve gives it one move
-    // less than the best total so far, so a search that overshot the budget would
-    // hand back a solution that makes the answer longer, not shorter.
+    // Test 75: phase 2 honours its move budget — it gets one move less than the best total
+    // so far, so overshooting would return a solution that lengthens the answer
     {
         bool ok = true;
         for (uint64_t seed = 0; seed < 10; seed++) {
@@ -1039,8 +1031,8 @@ static bool runAllTests() {
 
     // ─── Method Table Tests ───────────────────────────────────────────────────────
 
-    // Test 76: every method in the table is wired up — a null pointer here would
-    // crash Main the moment the method was picked.
+    // Test 76: every method in the table is wired up — a null pointer here crashes Main
+    // the moment the method is picked
     {
         bool ok = (METHOD_COUNT == 3);
         for (int i = 0; i < METHOD_COUNT; i++) {
@@ -1050,9 +1042,9 @@ static bool runAllTests() {
         total++; if (runTest("Every method has name, description and both calls", ok)) passed++;
     }
 
-    // Test 77: unimplemented methods return an empty sequence rather than a wrong
-    // one. Main gates on Method::implemented, so this pins the two together: a
-    // placeholder that started returning moves would be silently trusted.
+    // Test 77: unimplemented methods return nothing rather than something wrong
+    // Main gates on Method::implemented, so a placeholder that started returning moves
+    // would be silently trusted
     {
         bool ok = true;
         CubeState s = CubeState::solved();
@@ -1064,8 +1056,8 @@ static bool runAllTests() {
         total++; if (runTest("Placeholder methods return no moves", ok)) passed++;
     }
 
-    // Test 78: every implemented method actually solves. This is the check a new
-    // method has to pass to flip its implemented flag to true.
+    // Test 78: every implemented method actually solves, the check a new method passes to
+    // flip its implemented flag to true
     {
         bool ok = true;
         for (int i = 0; i < METHOD_COUNT; i++) {
@@ -1090,7 +1082,7 @@ static bool runAllTests() {
     return passed == total;
 }
 
-// ─── Entry point ──────────────────────────────────────────────────────────────
+// ─── Entry Point ──────────────────────────────────────────────────────────────
 int main() {
     Kociemba::buildTables();
     return runAllTests() ? 0 : 1;

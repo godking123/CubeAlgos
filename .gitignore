@@ -20,3 +20,6 @@ Viz/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Agent instructions, local only
+CLAUDE.md
