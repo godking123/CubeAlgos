@@ -59,13 +59,13 @@ static std::vector<Move> bfsCross(std::queue<std::pair<CubeState, std::vector<Mo
                 // Concat Inverse of That to Get Sol
                 if (isForward) {
                     solution = newPath;
-                    for (const auto& fm : other[key]) {
-                        solution.push_back(inverseOf(fm));
+                    for (int j = other[key].size() - 1; j >= 0; j--) {
+                        solution.push_back(inverseOf(other[key][j]));
                     }
                 } else {
                     solution = other[key];
-                    for (const auto& bm : newPath) {
-                        solution.push_back(inverseOf(bm));
+                    for (int j = newPath.size() - 1; j>= 0; j--) {
+                        solution.push_back(inverseOf(newPath[j]));
                     }
                 }
                 return solution;
