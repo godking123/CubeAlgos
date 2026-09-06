@@ -1,25 +1,18 @@
-# Build artifacts
-.build/
-*.o
-*.exe
-*.obj
-*.out
-*.a
-*.so
-*.dll
-cubealgo
-tests
+# ignore everything
+*
 
-# Scratch: terminal visualizers, not part of the state layer yet
-Viz/
+# allow directories
+!*/
 
-# Local agent / editor / OS state
-.claude/
-.vscode/
-.idea/
-.DS_Store
-Thumbs.db
-desktop.ini
+# allow source files
+!*.cc
+!*.h
+!*.md
+!Makefile
+!.gitignore
 
-# Agent instructions, local only
+# specific excludes
 CLAUDE.md
+.build/
+**/cubealgo
+**/tests
