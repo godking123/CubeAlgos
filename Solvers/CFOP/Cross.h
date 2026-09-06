@@ -6,7 +6,7 @@
 
 namespace Cross {
     bool isSolved(const CubeState& s);
-    std::vector<Move> solve(const CubeState& s);
+    std::vector<Move> solveCross(const CubeState& s);
 }
 
 #endif // CROSS_H_
