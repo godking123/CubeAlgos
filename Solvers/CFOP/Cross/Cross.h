@@ -3,10 +3,18 @@
 
 #include <vector>
 #include "../../../CubeState/CubeState.h"
+#include "../../../CubeState/SolverState.h"
+
+struct CrossResult {
+    int color;
+    const char* rotation;
+    std::vector<Move> moves;
+};
 
 namespace Cross {
-    bool isSolved(const CubeState& s);
-    std::vector<Move> solveCross(const CubeState& s);
+    bool isSolved(const SolverState& s);
+    std::vector<Move> solveCross(const SolverState& ss);
+    CrossResult bestCross(const CubeState& scrambled);
 }
 
 #endif // CROSS_H_
