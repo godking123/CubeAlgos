@@ -78,7 +78,7 @@ as many cubes as you like:
 
 ```cpp
 #include "CubeState/CubeAlgos.h"
-#include "Solvers/Kociemba/Kociemba.h"
+#include "Solvers/KociembaNaive/Kociemba.h"
 
 Kociemba::buildTables();                    // once, ~0.33 s
 
@@ -308,7 +308,7 @@ CubeState/               the state layer; knows nothing about solving
 Solvers/
   Method.h                 the interface Main talks to
   Method.cc                the METHODS table — one row per method
-  Kociemba/
+  KociembaNaive/
     Coords.h/.cc             coordinate encode/decode for both phases
     CoordTables.h/.cc        move and pruning tables, indexed by coordinate
     Phase1.h/.cc             reduce to G1; shortest, or every one of a given length

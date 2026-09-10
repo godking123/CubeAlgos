@@ -8,13 +8,13 @@ static const uint8_t X_FACES[6] = {2, 1, 3, 5, 4, 0};
 //                                  U  R  F  D  L  B
 // x: U←F, R←R, F←D, D←B, L←L, B←U
 
-static const uint8_t Y_FACES[6] = {0, 2, 4, 3, 5, 1};
+static const uint8_t Y_FACES[6] = {0, 5, 1, 3, 2, 4};
 //                                  U  R  F  D  L  B
-// y: U←U, R←F, F←L, D←D, L←B, B←R
+// y: U←U, R←B, F←R, D←D, L←F, B←L
 
-static const uint8_t Z_FACES[6] = {1, 3, 2, 4, 0, 5};
+static const uint8_t Z_FACES[6] = {4, 0, 2, 1, 3, 5};
 //                                  U  R  F  D  L  B
-// z: U←R, R←D, F←F, D←L, L←U, B←B
+// z: U←L, R←U, F←F, D←R, L←D, B←B
 
 // Use Rotation Arrays to Remap View
 void applyFaceMap(uint8_t faces[6], const uint8_t map[6]) {
@@ -95,16 +95,32 @@ SolverState applyRotation(const SolverState& s, CubeRot r) {
 SolverState faceToBottom(const SolverState& s, int color) {
     switch (color) {
         case 0: return applyRotation(s, CubeRot::x2);   // white (U) → bottom
-        case 1: return applyRotation(s, CubeRot::zp);   // red   (R) → bottom
-        case 2: return applyRotation(s, CubeRot::x);    // green (F) → bottom
+        case 1: return applyRotation(s, CubeRot::z);    // red   (R) → bottom
+        case 2: return applyRotation(s, CubeRot::xp);   // green (F) → bottom
         case 3: return s;                                // yellow(D) → already bottom
-        case 4: return applyRotation(s, CubeRot::z);    // orange(L) → bottom
-        case 5: return applyRotation(s, CubeRot::xp);   // blue  (B) → bottom
+        case 4: return applyRotation(s, CubeRot::zp);   // orange(L) → bottom
+        case 5: return applyRotation(s, CubeRot::x);    // blue  (B) → bottom
         default: return s;
     }
 }
 
 const char* faceToBottomName(int color) {
-    static const char* names[] = {"x2", "z'", "x", "", "z", "x'"};
+    static const char* names[] = {"x2", "z", "x'", "", "z'", "x"};
     return names[color];
+}
+const char* colorName(int color) {
+    static const char* names[] = {"white", "red", "green", "yellow", "orange", "blue"};
+    return names[color];
+}
+
+std::string orientationName(const Orientation& o) {
+    static const char* faces = "URFDLB";
+    std::string result;
+    for (int i = 0; i < 6; i++) {
+        if (i > 0) result += "  ";
+        result += faces[i];
+        result += ' ';
+        result += colorName(o.faces[i]);
+    }
+    return result;
 }

@@ -4,15 +4,16 @@ BUILD = .build
 
 # The state layer: cube representation, moves, notation, scrambles. Knows nothing
 # about how the cube is solved.
-CORE = CubeState/CubeState.cc CubeState/MoveTable.cc CubeState/Scramble.cc
+CORE = CubeState/CubeState.cc CubeState/MoveTable.cc CubeState/Scramble.cc \
+       CubeState/SolverState.cc
 
 # One block per solving method, plus the table that lets Main pick between them.
 # A new method is a new directory here and one line in Solvers/Method.cc.
 SOLVERS = Solvers/Method.cc \
-          Solvers/Kociemba/Coords.cc Solvers/Kociemba/CoordTables.cc \
-          Solvers/Kociemba/Phase1.cc Solvers/Kociemba/Phase2.cc \
-          Solvers/Kociemba/Kociemba.cc \
-          Solvers/CFOP/CFOP.cc \
+          Solvers/KociembaNaive/Coords.cc Solvers/KociembaNaive/CoordTables.cc \
+          Solvers/KociembaNaive/Phase1.cc Solvers/KociembaNaive/Phase2.cc \
+          Solvers/KociembaNaive/Kociemba.cc \
+          Solvers/CFOP/CFOP.cc Solvers/CFOP/Cross/Cross.cc \
           Solvers/Roux/Roux.cc
 
 CORE_OBJS = $(addprefix $(BUILD)/,$(notdir $(CORE:.cc=.o) $(SOLVERS:.cc=.o)))
@@ -37,10 +38,13 @@ $(BUILD)/%.o: CubeState/%.cc | $(BUILD)
 $(BUILD)/%.o: Solvers/%.cc | $(BUILD)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/%.o: Solvers/Kociemba/%.cc | $(BUILD)
+$(BUILD)/%.o: Solvers/KociembaNaive/%.cc | $(BUILD)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD)/%.o: Solvers/CFOP/%.cc | $(BUILD)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD)/%.o: Solvers/CFOP/Cross/%.cc | $(BUILD)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD)/%.o: Solvers/Roux/%.cc | $(BUILD)

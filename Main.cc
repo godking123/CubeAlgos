@@ -64,6 +64,7 @@ int main() {
     if (picked >= 0) method = picked;
 
     std::cout << "\nSolving with " << BOLD << METHODS[method].name << RESET << ".\n"
+              << "Scramble with " << CYAN << orientationName(Orientation{}) << RESET << "\n"
               << "Press ENTER to generate a new scramble and solve it.\n"
               << "Type 'm' to change method, 'q' to quit.\n\n";
 
