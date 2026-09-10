@@ -7,3 +7,4 @@
 #include <stdexcept>
 #include "CubeState.h"
 #include "Scramble.h"
+#include "SolverState.h"

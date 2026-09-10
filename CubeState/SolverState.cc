@@ -108,3 +108,19 @@ const char* faceToBottomName(int color) {
     static const char* names[] = {"x2", "z'", "x", "", "z", "x'"};
     return names[color];
 }
+const char* colorName(int color) {
+    static const char* names[] = {"white", "red", "green", "yellow", "orange", "blue"};
+    return names[color];
+}
+
+std::string orientationName(const Orientation& o) {
+    static const char* faces = "URFDLB";
+    std::string result;
+    for (int i = 0; i < 6; i++) {
+        if (i > 0) result += "  ";
+        result += faces[i];
+        result += ' ';
+        result += colorName(o.faces[i]);
+    }
+    return result;
+}

@@ -1,6 +1,7 @@
 #ifndef SOLVER_STATE_H
 #define SOLVER_STATE_H
 
+#include <string>
 #include "CubeState.h"
 
 // Whole-Cube Rotations, Three per Axis
@@ -33,5 +34,11 @@ SolverState applyRotation(const SolverState& s, CubeRot r);
 // color: 0=white 1=red 2=green 3=yellow 4=orange 5=blue
 SolverState faceToBottom(const SolverState& s, int color);
 const char* faceToBottomName(int color);
+
+// Colour Names, 0=white 1=red 2=green 3=yellow 4=orange 5=blue
+const char* colorName(int color);
+
+// Orientation as "U white  R red  F green ..." for the scrambling prompt
+std::string orientationName(const Orientation& o);
 
 #endif // SOLVER_STATE_H
