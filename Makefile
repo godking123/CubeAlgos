@@ -13,7 +13,7 @@ SOLVERS = Solvers/Method.cc \
           Solvers/KociembaNaive/Coords.cc Solvers/KociembaNaive/CoordTables.cc \
           Solvers/KociembaNaive/Phase1.cc Solvers/KociembaNaive/Phase2.cc \
           Solvers/KociembaNaive/Kociemba.cc \
-          Solvers/CFOP/CFOP.cc \
+          Solvers/CFOP/CFOP.cc Solvers/CFOP/Cross/Cross.cc \
           Solvers/Roux/Roux.cc
 
 CORE_OBJS = $(addprefix $(BUILD)/,$(notdir $(CORE:.cc=.o) $(SOLVERS:.cc=.o)))
@@ -42,6 +42,9 @@ $(BUILD)/%.o: Solvers/KociembaNaive/%.cc | $(BUILD)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD)/%.o: Solvers/CFOP/%.cc | $(BUILD)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD)/%.o: Solvers/CFOP/Cross/%.cc | $(BUILD)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD)/%.o: Solvers/Roux/%.cc | $(BUILD)
