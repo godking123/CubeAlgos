@@ -9,9 +9,9 @@ CORE = CubeState/CubeState.cc CubeState/MoveTable.cc CubeState/Scramble.cc
 # One block per solving method, plus the table that lets Main pick between them.
 # A new method is a new directory here and one line in Solvers/Method.cc.
 SOLVERS = Solvers/Method.cc \
-          Solvers/Kociemba/Coords.cc Solvers/Kociemba/CoordTables.cc \
-          Solvers/Kociemba/Phase1.cc Solvers/Kociemba/Phase2.cc \
-          Solvers/Kociemba/Kociemba.cc \
+          Solvers/KociembaNaive/Coords.cc Solvers/KociembaNaive/CoordTables.cc \
+          Solvers/KociembaNaive/Phase1.cc Solvers/KociembaNaive/Phase2.cc \
+          Solvers/KociembaNaive/Kociemba.cc \
           Solvers/CFOP/CFOP.cc \
           Solvers/Roux/Roux.cc
 
@@ -37,7 +37,7 @@ $(BUILD)/%.o: CubeState/%.cc | $(BUILD)
 $(BUILD)/%.o: Solvers/%.cc | $(BUILD)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/%.o: Solvers/Kociemba/%.cc | $(BUILD)
+$(BUILD)/%.o: Solvers/KociembaNaive/%.cc | $(BUILD)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD)/%.o: Solvers/CFOP/%.cc | $(BUILD)

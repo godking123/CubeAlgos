@@ -1,5 +1,5 @@
 #include "Method.h"
-#include "Kociemba/Kociemba.h"
+#include "KociembaNaive/Kociemba.h"
 #include "CFOP/CFOP.h"
 #include "Roux/Roux.h"
 

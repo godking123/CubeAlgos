@@ -1,10 +1,10 @@
 #include "CubeState/CubeAlgos.h"
 #include "Solvers/Method.h"
-#include "Solvers/Kociemba/Coords.h"
-#include "Solvers/Kociemba/CoordTables.h"
-#include "Solvers/Kociemba/Kociemba.h"
-#include "Solvers/Kociemba/Phase1.h"
-#include "Solvers/Kociemba/Phase2.h"
+#include "Solvers/KociembaNaive/Coords.h"
+#include "Solvers/KociembaNaive/CoordTables.h"
+#include "Solvers/KociembaNaive/Kociemba.h"
+#include "Solvers/KociembaNaive/Phase1.h"
+#include "Solvers/KociembaNaive/Phase2.h"
 
 // ─── ANSI Color Codes ──────────────────────────────────────────────────────────
 #define RESET   "\033[0m"
