@@ -19,7 +19,7 @@ static const int CROSS_EDGES[6][4] = {
     {4, 5, 6, 7}, {2, 9, 6, 10}, {3, 10, 7, 11},
 };
 
-// Checked on the physical cube, independent of the solver's own view-based test
+// Checked on the physical cube in the scrambling frame, independent of the solver
 static bool crossSolvedFor(const CubeState& s, int color) {
     for (int i = 0; i < 4; i++) {
         int slot = CROSS_EDGES[color][i];
@@ -28,20 +28,11 @@ static bool crossSolvedFor(const CubeState& s, int color) {
     return true;
 }
 
-// A solved cube in the identity view, SolverState{} would zero the cube instead
-static SolverState solvedState() {
-    SolverState ss;
-    ss.cube = CubeState::solved();
-    return ss;
-}
-
-// Rotate to put the colour down, run the solver's moves through that view
-static CubeState afterCross(const CubeState& s, int color, const std::vector<Move>& moves) {
-    SolverState ss;
-    ss.cube = s;
-    ss = faceToBottom(ss, color);
-    for (Move m : moves) ss = applyMove(ss, m);
-    return ss.cube;
+// Execute moves while holding the cube as hold says, back in the scrambling frame
+static CubeState execute(const CubeState& s, const Orientation& hold, const std::vector<Move>& moves) {
+    CubeState result = s;
+    for (Move m : moves) result = result.apply(translateMove(m, hold));
+    return result;
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -1107,89 +1098,109 @@ static bool runAllTests() {
         total++; if (runTest("Every implemented method solves 10 scrambles", ok)) passed++;
     }
 
-    std::cout << BOLD << "\n=== Solver State Tests ===\n\n" << RESET;
+    std::cout << BOLD << "\n=== Rotation Tests ===\n\n" << RESET;
 
     // Test 79: rotations follow standard notation from the white-top green-front view
     // x brings F up, y brings R to the front, z brings L up
     {
-        Orientation x = rotate(Orientation{}, CubeRot::x);
-        Orientation y = rotate(Orientation{}, CubeRot::y);
-        Orientation z = rotate(Orientation{}, CubeRot::z);
-        bool ok = x.faces[0] == 2 && x.faces[3] == 5
-               && y.faces[2] == 1 && y.faces[1] == 5
-               && z.faces[0] == 4 && z.faces[3] == 1;
+        Orientation x = Orientation::fromRotation(CubeRot::x);
+        Orientation y = Orientation::fromRotation(CubeRot::y);
+        Orientation z = Orientation::fromRotation(CubeRot::z);
+        bool ok = x.faceAt(0) == 2 && x.faceAt(3) == 5
+               && y.faceAt(2) == 1 && y.faceAt(1) == 5
+               && z.faceAt(0) == 4 && z.faceAt(3) == 1;
         total++; if (runTest("x, y, z rotate the view the standard way", ok)) passed++;
     }
 
-    // Test 80: a rotation, its inverse and its double all agree, and x4 = identity
+    // Test 80: the rotation group closes at 24 elements, every element has an inverse,
+    // and a rotation done four times is the identity
     {
         bool ok = true;
-        const CubeRot axes[3][3] = {
-            {CubeRot::x, CubeRot::xp, CubeRot::x2},
-            {CubeRot::y, CubeRot::yp, CubeRot::y2},
-            {CubeRot::z, CubeRot::zp, CubeRot::z2},
-        };
-        for (int a = 0; a < 3; a++) {
-            Orientation once = rotate(Orientation{}, axes[a][0]);
-            Orientation twice = rotate(once, axes[a][0]);
-            Orientation thrice = rotate(twice, axes[a][0]);
-            Orientation four = rotate(thrice, axes[a][0]);
-            Orientation inv = rotate(Orientation{}, axes[a][1]);
-            Orientation dbl = rotate(Orientation{}, axes[a][2]);
-            for (int f = 0; f < 6; f++) {
-                if (thrice.faces[f] != inv.faces[f]) ok = false;
-                if (twice.faces[f] != dbl.faces[f]) ok = false;
-                if (four.faces[f] != f) ok = false;
+        bool seen[256] = {false};
+        int count = 0;
+        for (int a = 0; a < 9; a++) {
+            for (int b = 0; b < 9; b++) {
+                Orientation o = Orientation::fromRotation(static_cast<CubeRot>(a))
+                                    .then(static_cast<CubeRot>(b));
+                if (!seen[o.id]) { seen[o.id] = true; count++; }
+                if (o.then(o.inverse()) != Orientation{}) ok = false;
             }
         }
-        total++; if (runTest("Inverse and double rotations agree, x4 = identity", ok)) passed++;
+        if (count != 24) ok = false;
+        for (int a = 0; a < 9; a += 3) {
+            Orientation o;
+            for (int i = 0; i < 4; i++) o = o.then(static_cast<CubeRot>(a));
+            if (o != Orientation{}) ok = false;
+        }
+        total++; if (runTest("Rotation group has 24 elements with inverses", ok)) passed++;
     }
 
-    // Test 81: faceToBottom lands every colour on D
+    // Test 81: a frame change keeps the cube solved and puts a turned layer where the
+    // rotation moved it, F becomes U under x
+    {
+        CubeState solved = CubeState::solved();
+        bool ok = solved.rotate(CubeRot::x) == solved
+               && solved.rotate(CubeRot::y).rotate(CubeRot::z) == solved
+               && solved.apply(Move::F).rotate(CubeRot::x) == solved.apply(Move::U)
+               && solved.apply(Move::R).rotate(CubeRot::y) == solved.apply(Move::F)
+               && solved.apply(Move::U).rotate(CubeRot::z) == solved.apply(Move::R);
+        total++; if (runTest("rotate keeps solved solved, moves a turned layer", ok)) passed++;
+    }
+
+    // Test 82: the frame contract — a move made while holding the cube some way equals
+    // the translated move in the scrambling frame, then reframing. This ties the
+    // rotation tables to the move tables for every move and every rotation
     {
         bool ok = true;
+        for (uint64_t seed = 0; seed < 10 && ok; seed++) {
+            CubeState s = CubeState::solved();
+            for (Move m : randomScramble(25, seed)) s = s.apply(m);
+            for (int r = 0; r < 9 && ok; r++) {
+                Orientation o = Orientation::fromRotation(static_cast<CubeRot>(r));
+                if (!(s.rotate(o).rotate(o.inverse()) == s)) ok = false;
+                for (int m = 0; m < 18; m++) {
+                    Move viewMove = static_cast<Move>(m);
+                    CubeState lhs = s.apply(translateMove(viewMove, o)).rotate(o);
+                    CubeState rhs = s.rotate(o).apply(viewMove);
+                    if (!(lhs == rhs)) ok = false;
+                }
+            }
+        }
+        total++; if (runTest("Moves in a frame match translated moves, all rotations", ok)) passed++;
+    }
+
+    // Test 83: orientationWithBottom lands every colour on D, and names come back as
+    // the single rotation that gets there
+    {
+        bool ok = true;
+        const char* expect[6] = {"x2", "z", "x'", "", "z'", "x"};
         for (int c = 0; c < 6; c++) {
-            SolverState ss = faceToBottom(solvedState(), c);
-            if (ss.view.faces[3] != c) ok = false;
+            Orientation o = orientationWithBottom(c);
+            if (o.faceAt(3) != c) ok = false;
+            if (rotationsTo(o) != expect[c]) ok = false;
         }
-        total++; if (runTest("faceToBottom puts each colour on D", ok)) passed++;
-    }
-
-    // Test 82: moves go through the view — with green down, a D in the view is a
-    // physical F, and every move under the identity view is itself
-    {
-        bool ok = true;
-        SolverState ss = faceToBottom(solvedState(), 2);
-        CubeState viaView = applyMove(ss, Move::D).cube;
-        CubeState physical = CubeState::solved().apply(Move::F);
-        for (int i = 0; i < 12; i++) {
-            if (viaView.ep[i] != physical.ep[i] || viaView.eo[i] != physical.eo[i]) ok = false;
-        }
-        for (int m = 0; m < 18; m++) {
-            if (translateMove(static_cast<Move>(m), Orientation{}) != static_cast<Move>(m)) ok = false;
-        }
-        total++; if (runTest("applyMove translates through the view", ok)) passed++;
+        total++; if (runTest("orientationWithBottom puts each colour on D", ok)) passed++;
     }
 
     std::cout << BOLD << "\n=== Cross Tests ===\n\n" << RESET;
 
-    // Test 83: solveCross solves the cross for every colour, checked on the physical cube
+    // Test 84: solveCross solves the cross for every colour, checked in the scrambling
+    // frame after executing the moves the way a human would
     {
         bool ok = true;
         for (uint64_t seed = 0; seed < 30 && ok; seed++) {
             CubeState s = CubeState::solved();
             for (Move m : randomScramble(25, seed)) s = s.apply(m);
             for (int c = 0; c < 6; c++) {
-                SolverState ss;
-                ss.cube = s;
-                ss = faceToBottom(ss, c);
-                if (!crossSolvedFor(afterCross(s, c, Cross::solveCross(ss)), c)) ok = false;
+                Orientation hold = orientationWithBottom(c);
+                std::vector<Move> moves = Cross::solveCross(s.rotate(hold));
+                if (!crossSolvedFor(execute(s, hold, moves), c)) ok = false;
             }
         }
         total++; if (runTest("solveCross solves all six colours on 30 scrambles", ok)) passed++;
     }
 
-    // Test 84: solveCross never exceeds God's Number for the cross, and a solved cross
+    // Test 85: solveCross never exceeds God's Number for the cross, and a solved cross
     // gets no moves
     {
         bool ok = true;
@@ -1197,46 +1208,37 @@ static bool runAllTests() {
             CubeState s = CubeState::solved();
             for (Move m : randomScramble(25, seed)) s = s.apply(m);
             for (int c = 0; c < 6; c++) {
-                SolverState ss;
-                ss.cube = s;
-                ss = faceToBottom(ss, c);
-                if (Cross::solveCross(ss).size() > 8) ok = false;
+                if (Cross::solveCross(s.rotate(orientationWithBottom(c))).size() > 8) ok = false;
             }
         }
-        for (int c = 0; c < 6; c++) {
-            if (!Cross::solveCross(faceToBottom(solvedState(), c)).empty()) ok = false;
-        }
+        if (!Cross::solveCross(CubeState::solved()).empty()) ok = false;
         total++; if (runTest("solveCross never exceeds 8 moves, solved cross gets none", ok)) passed++;
     }
 
-    // Test 85: bidirectional BFS is optimal — one move off the yellow cross takes one
-    // move back, and a U move leaves it solved
+    // Test 86: bidirectional BFS is optimal — one move off the cross takes one move
+    // back, and a U move leaves it solved
     {
         bool ok = true;
         for (int m = 0; m < 18; m++) {
-            SolverState ss;
-            ss.cube = CubeState::solved().apply(static_cast<Move>(m));
+            CubeState s = CubeState::solved().apply(static_cast<Move>(m));
             size_t expect = (m / 3 == 0) ? 0 : 1;
-            if (Cross::solveCross(ss).size() != expect) ok = false;
+            if (Cross::solveCross(s).size() != expect) ok = false;
         }
         total++; if (runTest("One-move setups undo in one move, U moves in none", ok)) passed++;
     }
 
-    // Test 86: bestCross solves the colour it reports, and is never longer than any
-    // single colour's solution
+    // Test 87: bestCross solves the colour it reports, its hold has that colour on D,
+    // and it is never longer than any single colour's solution
     {
         bool ok = true;
         for (uint64_t seed = 0; seed < 30 && ok; seed++) {
             CubeState s = CubeState::solved();
             for (Move m : randomScramble(25, seed)) s = s.apply(m);
             CrossResult r = Cross::bestCross(s);
-            if (!crossSolvedFor(afterCross(s, r.color, r.moves), r.color)) ok = false;
-            if (std::string(r.rotation) != faceToBottomName(r.color)) ok = false;
+            if (r.hold.faceAt(3) != r.color) ok = false;
+            if (!crossSolvedFor(execute(s, r.hold, r.moves), r.color)) ok = false;
             for (int c = 0; c < 6; c++) {
-                SolverState ss;
-                ss.cube = s;
-                ss = faceToBottom(ss, c);
-                if (Cross::solveCross(ss).size() < r.moves.size()) ok = false;
+                if (Cross::solveCross(s.rotate(orientationWithBottom(c))).size() < r.moves.size()) ok = false;
             }
         }
         total++; if (runTest("bestCross solves its colour and beats every single colour", ok)) passed++;

@@ -1,37 +1,23 @@
 #include "Cross.h"
-#include "../../../CubeState/CubeState.h"
 #include <unordered_map>
 #include <queue>
-#include "../../../CubeState/SolverState.h"
 
 namespace Cross {
 
-// Edge Slots Around Each Physical Face, U R F D L B
-static const int CROSS_SLOTS[6][4] = {
-    {0, 1, 2, 3},    // U: UR UF UL UB
-    {0, 8, 4, 11},   // R: UR FR DR BR
-    {1, 8, 5, 9},    // F: UF FR DF FL
-    {4, 5, 6, 7},    // D: DR DF DL DB
-    {2, 9, 6, 10},   // L: UL FL DL BL
-    {3, 10, 7, 11},  // B: UB BL DB BR
-};
-
-// The cross face is whichever physical face the view puts on the bottom
-bool isSolved(const SolverState& s) {
-    const int* slots = CROSS_SLOTS[s.view.faces[3]];
-    for (int i = 0; i < 4; i++) {
-        if (s.cube.ep[slots[i]] != slots[i] || s.cube.eo[slots[i]] != 0) return false;
-    }
-    return true;
+bool isSolved(const CubeState& s) {
+    return s.ep[4]==4 && s.eo[4]==0   // DR
+        && s.ep[5]==5 && s.eo[5]==0   // DF
+        && s.ep[6]==6 && s.eo[6]==0   // DL
+        && s.ep[7]==7 && s.eo[7]==0;  // DB
 }
 
-static uint32_t encodeCross(const SolverState& s) {
-    const int* pieces = CROSS_SLOTS[s.view.faces[3]];
+// Slot and Flip of Each D Edge, Five Bits Apiece
+static uint32_t encodeCross(const CubeState& s) {
     uint32_t key = 0;
-    for (int i = 0; i < 4; i++) {
+    for (int piece = 4; piece <= 7; piece++) {
         for (int slot = 0; slot < 12; slot++) {
-            if (s.cube.ep[slot] == pieces[i]) {
-                key = (key << 5) | (slot << 1) | s.cube.eo[slot];
+            if (s.ep[slot] == piece) {
+                key = (key << 5) | (slot << 1) | s.eo[slot];
                 break;
             }
         }
@@ -39,108 +25,89 @@ static uint32_t encodeCross(const SolverState& s) {
     return key;
 }
 
-static Move inverseOf(Move m) {
-    int i = static_cast<int>(m);
-    int face = i / 3, kind = i % 3;
-    return static_cast<Move>(face * 3 + (kind == 1 ? 1 : 2 - kind));
+// One Side of the Bidirectional Search
+struct Frontier {
+    std::queue<std::pair<CubeState, std::vector<Move>>> queue;
+    std::unordered_map<uint32_t, std::vector<Move>> seen;   // Cross Key : Moves to Get There
+
+    Frontier(const CubeState& start) {
+        seen[encodeCross(start)] = {};
+        queue.push({start, {}});
+    }
+};
+
+// Forward path, then the backward path reversed and inverted
+static std::vector<Move> joinPaths(const std::vector<Move>& forward,
+                                   const std::vector<Move>& backward) {
+    std::vector<Move> solution = forward;
+    for (int j = backward.size() - 1; j >= 0; j--) {
+        solution.push_back(inverseMove(backward[j]));
+    }
+    return solution;
 }
 
 // One Level of BFS
-static std::vector<Move> bfsCross(std::queue<std::pair<SolverState, std::vector<Move>>>& frontier,
-    std::unordered_map<uint32_t, std::vector<Move>>& mine, 
-    std::unordered_map<uint32_t, std::vector<Move>>& other,
-    bool isForward) {
-    
-    int levelSize = frontier.size();
+static std::vector<Move> expand(Frontier& mine, const Frontier& other, bool isForward) {
+    int levelSize = mine.queue.size();
     for (int i = 0; i < levelSize; i++) {
         // Grab Current Node
-        auto [ss, path] = frontier.front();
-        frontier.pop();
+        auto [state, path] = mine.queue.front();
+        mine.queue.pop();
 
         // Expand Into Node's Neighbors
         for (int m = 0; m < 18; m++) {
-            SolverState next = applyMove(ss, static_cast<Move>(m));
+            CubeState next = state.apply(static_cast<Move>(m));
             uint32_t key = encodeCross(next);
-            
-            if (mine.count(key) == 1) continue;
+
+            if (mine.seen.count(key) == 1) continue;
             std::vector<Move> newPath = path;
             newPath.push_back(static_cast<Move>(m));
 
             // Found a Solution
-            if (other.count(key) == 1) {
-                std::vector<Move> solution;
-                // Other map is Backward
-                // Concat Inverse of That to Get Sol
-                if (isForward) {
-                    solution = newPath;
-                    for (int j = other[key].size() - 1; j >= 0; j--) {
-                        solution.push_back(inverseOf(other[key][j]));
-                    }
-                } else {
-                    solution = other[key];
-                    for (int j = newPath.size() - 1; j>= 0; j--) {
-                        solution.push_back(inverseOf(newPath[j]));
-                    }
-                }
-                return solution;
+            auto hit = other.seen.find(key);
+            if (hit != other.seen.end()) {
+                return isForward ? joinPaths(newPath, hit->second)
+                                 : joinPaths(hit->second, newPath);
             }
-            
+
             // Update Frontier
-            mine[key] = newPath;
-            frontier.push({next, newPath});
+            mine.seen[key] = newPath;
+            mine.queue.push({next, newPath});
         }
     }
-
-    return {};   
+    return {};
 }
 
-std::vector<Move> solveCross(const SolverState& ss) {
-    if (isSolved(ss)) return {};
-    SolverState solvedSS;
-    solvedSS.cube = CubeState::solved();
-    solvedSS.view = ss.view;
+std::vector<Move> solveCross(const CubeState& s) {
+    if (isSolved(s)) return {};
+    Frontier forward(s);
+    Frontier backward(CubeState::solved());
 
-    // Map Current State : Moves to Get There
-    std::unordered_map<uint32_t, std::vector<Move>> forward;
-    std::unordered_map<uint32_t, std::vector<Move>> backward;
-
-    // Create Frontiers
-    std::queue<std::pair<SolverState, std::vector<Move>>> forwardF;
-    std::queue<std::pair<SolverState, std::vector<Move>>> backwardF;
-
-    // Input Initial Vals
-    forward[encodeCross(ss)] = {};
-    backward[encodeCross(solvedSS)] = {};
-    forwardF.push({ss, {}});
-    backwardF.push({solvedSS, {}});
-
-    // Bidirectional BFS
-    while (!forwardF.empty() && !backwardF.empty()) {
+    // Bidirectional BFS, Always Grow the Smaller Side
+    while (!forward.queue.empty() && !backward.queue.empty()) {
         std::vector<Move> result;
-        if (forwardF.size() <= backwardF.size())
-            result = bfsCross(forwardF, forward, backward, true);
+        if (forward.queue.size() <= backward.queue.size())
+            result = expand(forward, backward, true);
         else
-            result = bfsCross(backwardF, backward, forward, false);
+            result = expand(backward, forward, false);
         if (!result.empty()) return result;
     }
     return {};
 }
 
+// Solve every colour in its own frame, keep the shortest
+// Ties go to the lowest colour index, so white beats yellow beats the sides
 CrossResult bestCross(const CubeState& scrambled) {
     CrossResult best;
-    best.color    = 3;
-    best.rotation = "";
-    best.moves.resize(20);
+    bool found = false;
     for (int c = 0; c < 6; c++) {
-        SolverState ss;
-        ss.cube = scrambled;
-        ss.view = Orientation{};
-        ss = faceToBottom(ss, c);
-        auto sol = solveCross(ss);
-        if (sol.size() < best.moves.size()) {
-            best.color    = c;
-            best.rotation = faceToBottomName(c);
-            best.moves    = sol;
+        Orientation hold = orientationWithBottom(c);
+        std::vector<Move> moves = solveCross(scrambled.rotate(hold));
+        if (!found || moves.size() < best.moves.size()) {
+            best.color = c;
+            best.hold  = hold;
+            best.moves = moves;
+            found = true;
         }
     }
     return best;

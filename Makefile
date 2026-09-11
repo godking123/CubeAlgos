@@ -5,7 +5,7 @@ BUILD = .build
 # The state layer: cube representation, moves, notation, scrambles. Knows nothing
 # about how the cube is solved.
 CORE = CubeState/CubeState.cc CubeState/MoveTable.cc CubeState/Scramble.cc \
-       CubeState/SolverState.cc
+       CubeState/Rotation.cc
 
 # One block per solving method, plus the table that lets Main pick between them.
 # A new method is a new directory here and one line in Solvers/Method.cc.

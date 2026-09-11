@@ -17,6 +17,16 @@ enum class Move : uint8_t {
     Count
 };
 
+// Whole-Cube Rotations, Three per Axis
+// x follows R, y follows U, z follows F
+enum class CubeRot : uint8_t {
+    x, xp, x2,
+    y, yp, y2,
+    z, zp, z2
+};
+
+struct Orientation;
+
 struct CubeState {
     uint8_t cp[8];   // Corner Permutation — Which Corner Sits in Each Slot
     uint8_t co[8];   // Corner Orientation — Twist, 0 to 2
@@ -25,8 +35,17 @@ struct CubeState {
 
     static CubeState solved();
     bool isSolved() const;
+    bool operator==(const CubeState& o) const;
     CubeState apply(Move m) const;
+
+    // The same cube described from a new frame: pieces move to the slots they now
+    // occupy and are renamed by their new homes, so a solved cube stays solved and
+    // the D edges after rotate(x) are the cross of the colour now on the bottom
+    CubeState rotate(CubeRot r) const;
+    CubeState rotate(const Orientation& o) const;
 };
+
+Move inverseMove(Move m);
 
 const char* moveName(Move m);
 Move parseMove(const std::string& s);

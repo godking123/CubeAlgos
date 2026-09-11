@@ -16,6 +16,12 @@ bool CubeState::isSolved() const {
     return true;
 }
 
+bool CubeState::operator==(const CubeState& o) const {
+    for (int i = 0; i < 8;  i++) if (cp[i] != o.cp[i] || co[i] != o.co[i]) return false;
+    for (int i = 0; i < 12; i++) if (ep[i] != o.ep[i] || eo[i] != o.eo[i]) return false;
+    return true;
+}
+
 // A move is a permutation composed with an orientation delta
 CubeState CubeState::apply(Move m) const {
     CubeState next;
@@ -29,6 +35,13 @@ CubeState CubeState::apply(Move m) const {
         next.eo[i] = (eo[t.ep[i]] + t.eo[i]) % 2;
     }
     return next;
+}
+
+// Quarter turns swap with their prime, half turns are their own inverse
+Move inverseMove(Move m) {
+    int i = static_cast<int>(m);
+    int face = i / 3, kind = i % 3;
+    return static_cast<Move>(face * 3 + (kind == 1 ? 1 : 2 - kind));
 }
 
 // Both tables are indexed by the Move enum, so their order is the enum's order

@@ -3,9 +3,9 @@ CXXFLAGS = -std=c++17 -Wall -O2 -MMD -MP
 BUILD = .build
 ROOT = ../../..
 
-# Cube representation, moves, scrambles and the rotation-aware solver state
+# Cube representation, moves, scrambles and rotations
 CORE = $(ROOT)/CubeState/CubeState.cc $(ROOT)/CubeState/MoveTable.cc \
-       $(ROOT)/CubeState/Scramble.cc $(ROOT)/CubeState/SolverState.cc
+       $(ROOT)/CubeState/Scramble.cc $(ROOT)/CubeState/Rotation.cc
 
 SRCS = cross-test.cc Cross.cc $(CORE)
 OBJS = $(addprefix $(BUILD)/,$(notdir $(SRCS:.cc=.o)))

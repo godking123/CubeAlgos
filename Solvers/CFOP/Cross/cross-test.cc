@@ -1,7 +1,7 @@
 #include <iostream>
 #include <string>
 #include "../../../CubeState/Scramble.h"
-#include "../../../CubeState/SolverState.h"
+#include "../../../CubeState/Rotation.h"
 #include "Cross.h"
 
 // Interactive cross tester, Enter for the next scramble, q or EOF to quit
@@ -15,13 +15,12 @@ int main() {
         for (auto m : scramble) cube = cube.apply(m);
 
         CrossResult best = Cross::bestCross(cube);
-        SolverState view;
-        view = faceToBottom(view, best.color);
+        std::string rotation = rotationsTo(best.hold);
 
         std::cout << "Scramble " << n++ << ": " << sequenceName(scramble) << "\n"
                   << "Color:    " << colorName(best.color) << "\n"
-                  << "Rotation: " << (best.rotation[0] ? best.rotation : "(none)") << "\n"
-                  << "Hold:     " << orientationName(view.view) << "\n"
+                  << "Rotation: " << (rotation.empty() ? "(none)" : rotation) << "\n"
+                  << "Hold:     " << orientationName(best.hold) << "\n"
                   << "Cross:    " << sequenceName(best.moves)
                   << "  (" << best.moves.size() << " moves)\n";
 
