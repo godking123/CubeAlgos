@@ -13,7 +13,8 @@ SOLVERS = Solvers/Method.cc \
           Solvers/KociembaNaive/Coords.cc Solvers/KociembaNaive/CoordTables.cc \
           Solvers/KociembaNaive/Phase1.cc Solvers/KociembaNaive/Phase2.cc \
           Solvers/KociembaNaive/Kociemba.cc \
-          Solvers/CFOP/CFOP.cc Solvers/CFOP/Cross/Cross.cc \
+          Solvers/CFOP/CFOP.cc Solvers/CFOP/PieceSearch.cc \
+          Solvers/CFOP/Cross/Cross.cc Solvers/CFOP/F2L/F2L.cc \
           Solvers/Roux/Roux.cc
 
 # Scramble generators that need a solver, so they sit above both layers.
@@ -49,6 +50,9 @@ $(BUILD)/%.o: Solvers/CFOP/%.cc | $(BUILD)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD)/%.o: Solvers/CFOP/Cross/%.cc | $(BUILD)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD)/%.o: Solvers/CFOP/F2L/%.cc | $(BUILD)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD)/%.o: Solvers/Roux/%.cc | $(BUILD)
