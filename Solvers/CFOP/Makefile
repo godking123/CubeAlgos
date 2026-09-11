@@ -1,7 +1,7 @@
 CXX = g++
 CXXFLAGS = -std=c++17 -Wall -O2 -MMD -MP
 BUILD = .build
-ROOT = ../../..
+ROOT = ../..
 
 # Cube representation, moves, scrambles and rotations
 CORE = $(ROOT)/CubeState/CubeState.cc $(ROOT)/CubeState/MoveTable.cc \
@@ -15,16 +15,22 @@ KOCIEMBA = $(ROOT)/Solvers/KociembaNaive/Coords.cc \
            $(ROOT)/Solvers/KociembaNaive/Kociemba.cc
 SCRAMBLERS = $(ROOT)/Scramblers/WCA.cc
 
-SRCS = cross-test.cc Cross.cc $(CORE) $(KOCIEMBA) $(SCRAMBLERS)
+SRCS = cfop-test.cc PieceSearch.cc Cross/Cross.cc F2L/F2L.cc $(CORE) $(KOCIEMBA) $(SCRAMBLERS)
 OBJS = $(addprefix $(BUILD)/,$(notdir $(SRCS:.cc=.o)))
 
 .PHONY: all
-all: cross-test
+all: cfop-test
 
-cross-test: $(OBJS)
+cfop-test: $(OBJS)
 	$(CXX) $(CXXFLAGS) $^ -o $@
 
 $(BUILD)/%.o: %.cc | $(BUILD)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD)/%.o: Cross/%.cc | $(BUILD)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD)/%.o: F2L/%.cc | $(BUILD)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD)/%.o: $(ROOT)/CubeState/%.cc | $(BUILD)
@@ -42,9 +48,9 @@ $(BUILD):
 -include $(OBJS:.o=.d)
 
 .PHONY: run
-run: cross-test
-	./cross-test
+run: cfop-test
+	./cfop-test
 
 .PHONY: clean
 clean:
-	rm -rf $(BUILD) cross-test
+	rm -rf $(BUILD) cfop-test
