@@ -1,5 +1,6 @@
 #include "CubeState/CubeAlgos.h"
 #include "Solvers/Method.h"
+#include "Scramblers/WCA.h"
 
 #define RESET "\033[0m"
 #define BOLD  "\033[1m"
@@ -88,8 +89,8 @@ int main() {
             continue;
         }
 
-        // Generate Scramble
-        auto scrambleMoves = randomScramble(20, seed++);
+        // Random State Scramble, as at Competition
+        auto scrambleMoves = WCA::scramble(seed++);
         std::string scrambleStr = sequenceName(scrambleMoves);
 
         std::cout << "\n" << BOLD << CYAN

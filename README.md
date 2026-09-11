@@ -10,7 +10,7 @@ Kociemba's two-phase algorithm with a full combination search — every scramble
 in about 20 moves, in a fraction of a second, with no dependencies beyond a C++17 compiler.
 
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)](#building)
-[![Tests](https://img.shields.io/badge/tests-78%20passing-2FA35B)](#testing)
+[![Tests](https://img.shields.io/badge/tests-93%20passing-2FA35B)](#testing)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-linux%20%7C%20macOS%20%7C%20WSL-lightgrey)](#building)
 
@@ -29,7 +29,8 @@ in about 20 moves, in a fraction of a second, with no dependencies beyond a C++1
 | **Fast** | ~0.15 s per solve, 0.33 s of one-time table building, 21 MB of tables |
 | **No dependencies** | A C++17 compiler and `make`. Nothing to install, nothing to vendor |
 | **Readable** | A cubie model and plain IDA\*, written to be followed rather than golfed |
-| **Verified** | 78 tests, pinned against external ground truth — not just self-consistency |
+| **Verified** | 93 tests, pinned against external ground truth — not just self-consistency |
+| **WCA scrambles** | Random-state scrambles the way TNoodle makes them: uniform over every legal cube, ≤ 21 moves |
 | **Extensible** | Solving methods are rows in a table; adding one touches no existing code |
 
 ## Quick start
@@ -42,7 +43,7 @@ make            # builds ./cubealgo and ./tests
 ```
 
 `cubealgo` builds every method's tables, asks which method to solve with, then
-scrambles and solves on each ENTER:
+generates a WCA random-state scramble and solves it on each ENTER:
 
 ```
 $ ./cubealgo
@@ -62,11 +63,11 @@ Press ENTER to generate a new scramble and solve it.
 Type 'm' to change method, 'q' to quit.
 
 [ Press ENTER ]
-Scramble: L2 D B F2 R2 U2 L2 B' D2 U L F U D2 B D L' U' L2 R
+Scramble: U F2 D' L2 D2 B2 R2 B2 U' F D' R' D B' R' U R2 L'
 Solving with Kociemba...
 Method:   Kociemba
-Solution: R F D2 B' U2 R D B U R F D F2 D R2 F2 R2 U2 B2 D'
-Moves:    20
+Solution: L R2 U' R B D' R D F' U B2 R2 B2 D2 L2 D F2 U'
+Moves:    18
 Time:     44.6295 ms
 Solved:   YES
 ```
@@ -109,8 +110,11 @@ assert(s.isSolved());
 | `parseMove(const std::string&)` | notation → move; throws `std::invalid_argument` |
 | `parseSequence(const std::string&)` | whitespace-separated notation → `std::vector<Move>` |
 | `sequenceName(const std::vector<Move>&)` | sequence → space-separated notation |
-| `randomScramble(int length = 25)` | a canonical random scramble, seeded from `std::random_device` |
+| `randomScramble(int length = 25)` | a random-move scramble, seeded from `std::random_device` |
 | `randomScramble(int length, uint64_t seed)` | the same, reproducible for a given seed |
+| `randomState()` | a state drawn uniformly from every legal cube |
+| `randomState(uint64_t seed)` | the same, reproducible for a given seed |
+| `canonicalize(const std::vector<Move>&)` | merges and cancels turns; same permutation, fewest moves |
 
 `parseMove` and `parseSequence` throw `std::invalid_argument` on an unrecognized token,
 so callers handling user input should wrap them in `try`/`catch`.
@@ -121,6 +125,7 @@ so callers handling user input should wrap them in `try`/`catch`.
 |---|---|
 | `Kociemba::buildTables()` | fills every coordinate and pruning table; call once |
 | `Kociemba::solve(const CubeState&)` | the full solver; solves any state |
+| `Kociemba::solve(const CubeState&, maxMoves)` | the same, but keeps searching until a solution fits the cap |
 | `Phase1::solve(const CubeState&)` | shortest moves reducing any state to G1; ≤ 12 moves |
 | `Phase1::forEachSolution(s, len, fn)` | every way into G1 in exactly `len` moves |
 | `Phase2::solve(const CubeState&, maxMoves, lastMove)` | moves solving a G1 state; G1 generators only |
@@ -129,7 +134,35 @@ The phases are callable individually. Phase 2 assumes its input is already in G1
 must be given the state *after* phase 1 is applied. All of these return an empty
 sequence when their goal is already met.
 
+### Scrambling
+
+| Function | Behavior |
+|---|---|
+| `WCA::scramble()` | a random-state scramble, seeded from `std::random_device` |
+| `WCA::scramble(uint64_t seed)` | the same, reproducible for a given seed |
+| `WCA::allowed(const CubeState&)` | true when WCA regulation 4b3 lets the state stand as a scramble |
+
+`WCA::scramble` needs Kociemba's tables, so call `Kociemba::buildTables()` first.
+
 </details>
+
+## WCA scrambles
+
+`WCA::scramble` produces random-state scrambles the way [TNoodle](https://github.com/thewca/tnoodle)
+does for 3x3x3 at competition. A random-move scramble is a walk of a fixed number of
+turns, and the states it lands on are far from uniformly distributed. A random-state
+scramble starts from the other end:
+
+1. **Draw a state** uniformly from all 43 quintillion legal cubes — random corner and
+   edge permutations with matching parity, random twists summing to 0 mod 3, random
+   flips summing to even.
+2. **Reject it** if it is within one move of solved (WCA regulation 4b3), and redraw.
+3. **Solve it** with the two-phase search under a hard 21-move cap.
+4. **Invert the solution.** Applied to a solved cube, it reaches the drawn state.
+
+Scrambles come out 18–21 moves, canonical, and take about 0.16 s each. The cap is
+folded into phase 2's budget, so `Kociemba::solve(s, 21)` never records a longer
+combination — it just keeps walking phase 1 lengths until one fits.
 
 ## How it works
 
@@ -243,11 +276,11 @@ make clean  # removes binaries and object files
 make test
 ```
 
-78 tests covering the group structure (move orders, commuting and non-commuting face
+93 tests covering the group structure (move orders, commuting and non-commuting face
 pairs, permutation validity, orientation-sum and parity invariants), both phases'
 coordinate encodings, move tables and pruning tables, the solvers, the method table,
-scramble generation, and move parsing. The run takes about eight seconds, most of it
-spent solving real scrambles end to end. It exits non-zero on failure, so `make test`
+random-move and random-state scramble generation, and move parsing. The run takes
+about ten seconds, most of it spent solving real scrambles end to end. It exits non-zero on failure, so `make test`
 fails the build with it.
 
 A move table wired up backwards still satisfies every self-consistency check, so
@@ -302,8 +335,11 @@ Makefile
 CubeState/               the state layer; knows nothing about solving
   CubeState.h/.cc          Move enum, CubeState, state ops, notation parsing
   MoveTable.h/.cc          the 18 move tables
-  Scramble.h/.cc           scramble generation and sequence printing
+  Scramble.h/.cc           random moves, random states, canonicalization, printing
   CubeAlgos.h              umbrella header for the state layer
+
+Scramblers/
+  WCA.h/.cc                random-state scrambles, TNoodle style; sits above the solvers
 
 Solvers/
   Method.h                 the interface Main talks to
@@ -322,6 +358,7 @@ Solvers/
 
 - [x] Cubie model, move tables, notation parsing, scramble generation
 - [x] Kociemba two-phase solver with combination search
+- [x] WCA random-state scrambles
 - [ ] CFOP
 - [ ] Roux
 - [ ] State import from a facelet string

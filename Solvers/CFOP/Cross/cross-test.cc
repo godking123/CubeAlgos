@@ -2,15 +2,19 @@
 #include <string>
 #include "../../../CubeState/Scramble.h"
 #include "../../../CubeState/Rotation.h"
+#include "../../../Solvers/KociembaNaive/Kociemba.h"
+#include "../../../Scramblers/WCA.h"
 #include "Cross.h"
 
 // Interactive cross tester, Enter for the next scramble, q or EOF to quit
+// Scrambles are WCA random state, so they need the solver's tables
 int main() {
+    Kociemba::buildTables();
     std::cout << "Scramble with " << orientationName(Orientation{}) << "\n\n";
     std::string line;
     int n = 1;
     while (true) {
-        auto scramble = randomScramble();
+        auto scramble = WCA::scramble();
         CubeState cube = CubeState::solved();
         for (auto m : scramble) cube = cube.apply(m);
 

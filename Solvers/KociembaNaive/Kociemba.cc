@@ -33,22 +33,31 @@ const int NO_SOLUTION = MAX_PHASE1_LENGTH + MAX_PHASE2_LENGTH + 1;
 //
 // Each further phase 1 length costs roughly 20x more candidates, so EXTRA_LENGTHS
 // stops the walk a couple of lengths past the first that completes
+//
+// The cap is folded into the phase 2 budget, so a combination over it is never found
+// at all: the first success, and the margin counted from it, is the first that fits
 std::vector<Move> solve(const CubeState& s) {
+    return solve(s, MAX_PHASE1_LENGTH + MAX_PHASE2_LENGTH);  // Uncapped
+}
+
+std::vector<Move> solve(const CubeState& s, int maxMoves) {
     std::vector<Move> best;
     int bestLength = NO_SOLUTION;
 
     int firstSuccess = -1;  // First Phase 1 Length That Completes
 
     for (int p1Length = 0; p1Length <= MAX_PHASE1_LENGTH; p1Length++) {
-        if (p1Length >= bestLength) break;  // Phase 1 Alone Ties the Best
+        // Phase 1 Alone Ties the Best, or Overruns the Cap
+        if (p1Length >= bestLength || p1Length > maxMoves) break;
         if (firstSuccess >= 0 && p1Length > firstSuccess + EXTRA_LENGTHS) break;
 
         Phase1::forEachSolution(s, p1Length, [&](const std::vector<Move>& phase1) {
             CubeState g1 = s;
             for (Move m : phase1) g1 = g1.apply(m);
 
-            // Phase 2 Budget for a Strictly Shorter Total
-            int budget = std::min(MAX_PHASE2_LENGTH, bestLength - p1Length - 1);
+            // Phase 2 Budget for a Strictly Shorter Total, Inside the Cap
+            int budget = std::min({MAX_PHASE2_LENGTH, bestLength - 1 - p1Length,
+                                   maxMoves - p1Length});
             int lastMove = phase1.empty() ? -1 : static_cast<int>(phase1.back());
 
             std::vector<Move> phase2 = Phase2::solve(g1, budget, lastMove);

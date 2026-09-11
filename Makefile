@@ -16,7 +16,11 @@ SOLVERS = Solvers/Method.cc \
           Solvers/CFOP/CFOP.cc Solvers/CFOP/Cross/Cross.cc \
           Solvers/Roux/Roux.cc
 
-CORE_OBJS = $(addprefix $(BUILD)/,$(notdir $(CORE:.cc=.o) $(SOLVERS:.cc=.o)))
+# Scramble generators that need a solver, so they sit above both layers.
+SCRAMBLERS = Scramblers/WCA.cc
+
+CORE_OBJS = $(addprefix $(BUILD)/,$(notdir $(CORE:.cc=.o) $(SOLVERS:.cc=.o) \
+                                          $(SCRAMBLERS:.cc=.o)))
 
 ALL_OBJS = $(CORE_OBJS) $(BUILD)/Main.o $(BUILD)/Tests.o
 
@@ -48,6 +52,9 @@ $(BUILD)/%.o: Solvers/CFOP/Cross/%.cc | $(BUILD)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD)/%.o: Solvers/Roux/%.cc | $(BUILD)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD)/%.o: Scramblers/%.cc | $(BUILD)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD):

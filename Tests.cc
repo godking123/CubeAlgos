@@ -6,6 +6,7 @@
 #include "Solvers/KociembaNaive/Phase1.h"
 #include "Solvers/KociembaNaive/Phase2.h"
 #include "Solvers/CFOP/Cross/Cross.h"
+#include "Scramblers/WCA.h"
 
 // ─── ANSI Color Codes ──────────────────────────────────────────────────────────
 #define RESET   "\033[0m"
@@ -1242,6 +1243,134 @@ static bool runAllTests() {
             }
         }
         total++; if (runTest("bestCross solves its colour and beats every single colour", ok)) passed++;
+    }
+
+    // Test 88: randomState is a legal cube — both arrays are permutations with matching
+    // parity, twists sum to 0 mod 3 and flips to even — and it repeats for the same seed
+    {
+        auto parity = [](const uint8_t* p, int n) {
+            int inv = 0;
+            for (int i = 0; i < n; i++)
+                for (int j = i + 1; j < n; j++)
+                    if (p[j] < p[i]) inv++;
+            return inv % 2;
+        };
+        bool ok = randomState(9) == randomState(9) && !(randomState(9) == randomState(10));
+        for (uint64_t seed = 0; seed < 200 && ok; seed++) {
+            CubeState s = randomState(seed);
+            bool cornerSeen[8] = {}, edgeSeen[12] = {};
+            int twist = 0, flip = 0;
+            for (int i = 0; i < 8;  i++) { cornerSeen[s.cp[i]] = true; twist += s.co[i]; }
+            for (int i = 0; i < 12; i++) { edgeSeen[s.ep[i]]   = true; flip  += s.eo[i]; }
+            for (int i = 0; i < 8;  i++) if (!cornerSeen[i]) ok = false;
+            for (int i = 0; i < 12; i++) if (!edgeSeen[i])   ok = false;
+            if (twist % 3 != 0 || flip % 2 != 0) ok = false;
+            if (parity(s.cp, 8) != parity(s.ep, 12)) ok = false;
+        }
+        total++; if (runTest("randomState is a legal cube and repeats by seed", ok)) passed++;
+    }
+
+    // Test 89: randomState reaches all four invariant classes it can — a state with each
+    // permutation parity, an odd twist on some corner, a flipped edge — so the draw is
+    // not stuck in a subgroup. 200 draws miss a class with probability under 1e-30
+    {
+        auto parity = [](const uint8_t* p, int n) {
+            int inv = 0;
+            for (int i = 0; i < n; i++)
+                for (int j = i + 1; j < n; j++)
+                    if (p[j] < p[i]) inv++;
+            return inv % 2;
+        };
+        bool even = false, odd = false, twisted = false, flipped = false;
+        for (uint64_t seed = 0; seed < 200; seed++) {
+            CubeState s = randomState(seed);
+            (parity(s.cp, 8) ? odd : even) = true;
+            if (s.co[7] != 0) twisted = true;
+            if (s.eo[11] != 0) flipped = true;
+        }
+        bool ok = even && odd && twisted && flipped;
+        total++; if (runTest("randomState covers both parities and the closing twist and flip", ok)) passed++;
+    }
+
+    // Test 90: canonicalize merges same-face turns, also through the opposite face, drops
+    // what cancels, orders each axis pair, and never changes the permutation
+    {
+        auto same = [](const std::vector<Move>& a, const std::vector<Move>& b) {
+            CubeState x = CubeState::solved(), y = CubeState::solved();
+            for (Move m : a) x = x.apply(m);
+            for (Move m : b) y = y.apply(m);
+            return x == y;
+        };
+        struct Case { const char* in; const char* out; };
+        const Case cases[] = {
+            {"U U",            "U2"},
+            {"U U'",           ""},
+            {"U D U2",         "U' D"},
+            {"D U",            "U D"},
+            {"R L R' L'",      ""},
+            {"U R R' D",       "U D"},
+            {"U R R' U'",      ""},
+            {"F2 B F2 B'",     ""},
+            {"R U R' U'",      "R U R' U'"},
+        };
+        bool ok = true;
+        for (const Case& c : cases) {
+            auto in = parseSequence(c.in), out = parseSequence(c.out);
+            if (canonicalize(in) != out || !same(in, out)) ok = false;
+        }
+        // Random-Move Scrambles Already Have Nothing to Merge
+        for (uint64_t seed = 0; seed < 100 && ok; seed++) {
+            auto sc = randomScramble(25, seed);
+            if (canonicalize(sc).size() != sc.size() || !same(canonicalize(sc), sc)) ok = false;
+        }
+        total++; if (runTest("canonicalize merges, cancels, orders, and keeps the permutation", ok)) passed++;
+    }
+
+    // Test 91: the capped solve never exceeds its cap and still solves — the walk must
+    // run on past its usual cutoff rather than hand back the best it had
+    {
+        bool ok = true;
+        for (uint64_t seed = 0; seed < 20 && ok; seed++) {
+            CubeState s = randomState(seed);
+            auto sol = Kociemba::solve(s, WCA::MAX_LENGTH);
+            if (sol.size() > static_cast<size_t>(WCA::MAX_LENGTH)) ok = false;
+            for (Move m : sol) s = s.apply(m);
+            if (!s.isSolved()) ok = false;
+        }
+        if (!Kociemba::solve(CubeState::solved(), WCA::MAX_LENGTH).empty()) ok = false;
+        total++; if (runTest("Kociemba::solve(s, cap) solves inside the cap", ok)) passed++;
+    }
+
+    // Test 92: a WCA scramble reaches a state at least two moves from solved, is at most
+    // 21 moves, is canonical, and repeats for the same seed
+    {
+        bool ok = WCA::scramble(3) == WCA::scramble(3) && WCA::scramble(3) != WCA::scramble(4);
+        for (uint64_t seed = 0; seed < 20 && ok; seed++) {
+            auto sc = WCA::scramble(seed);
+            if (sc.size() > static_cast<size_t>(WCA::MAX_LENGTH)) ok = false;
+            if (canonicalize(sc) != sc) ok = false;
+            CubeState s = CubeState::solved();
+            for (Move m : sc) s = s.apply(m);
+            if (s.isSolved()) ok = false;
+            for (int m = 0; m < 18; m++)
+                if (s.apply(static_cast<Move>(m)).isSolved()) ok = false;
+        }
+        total++; if (runTest("WCA scramble: <= 21 moves, canonical, >= 2 from solved, by seed", ok)) passed++;
+    }
+
+    // Test 93: the regulation 4b3 gate — solved and every one-move state are rejected,
+    // every genuine two-move state is allowed
+    {
+        bool ok = !WCA::allowed(CubeState::solved());
+        for (int a = 0; a < 18 && ok; a++) {
+            CubeState one = CubeState::solved().apply(static_cast<Move>(a));
+            if (WCA::allowed(one)) ok = false;
+            for (int b = 0; b < 18; b++) {
+                if (b / 3 == a / 3) continue;  // Same Face Collapses to One Move
+                if (!WCA::allowed(one.apply(static_cast<Move>(b)))) ok = false;
+            }
+        }
+        total++; if (runTest("WCA::allowed rejects within one move of solved, allows two", ok)) passed++;
     }
 
     std::cout << "\n" << BOLD;

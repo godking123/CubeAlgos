@@ -7,7 +7,15 @@ ROOT = ../../..
 CORE = $(ROOT)/CubeState/CubeState.cc $(ROOT)/CubeState/MoveTable.cc \
        $(ROOT)/CubeState/Scramble.cc $(ROOT)/CubeState/Rotation.cc
 
-SRCS = cross-test.cc Cross.cc $(CORE)
+# The WCA scrambler solves a random state with Kociemba, so it pulls the solver in
+KOCIEMBA = $(ROOT)/Solvers/KociembaNaive/Coords.cc \
+           $(ROOT)/Solvers/KociembaNaive/CoordTables.cc \
+           $(ROOT)/Solvers/KociembaNaive/Phase1.cc \
+           $(ROOT)/Solvers/KociembaNaive/Phase2.cc \
+           $(ROOT)/Solvers/KociembaNaive/Kociemba.cc
+SCRAMBLERS = $(ROOT)/Scramblers/WCA.cc
+
+SRCS = cross-test.cc Cross.cc $(CORE) $(KOCIEMBA) $(SCRAMBLERS)
 OBJS = $(addprefix $(BUILD)/,$(notdir $(SRCS:.cc=.o)))
 
 .PHONY: all
@@ -20,6 +28,12 @@ $(BUILD)/%.o: %.cc | $(BUILD)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD)/%.o: $(ROOT)/CubeState/%.cc | $(BUILD)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD)/%.o: $(ROOT)/Solvers/KociembaNaive/%.cc | $(BUILD)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD)/%.o: $(ROOT)/Scramblers/%.cc | $(BUILD)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD):
