@@ -10,7 +10,7 @@ Kociemba's two-phase algorithm with a full combination search — every scramble
 in about 20 moves, in a fraction of a second, with no dependencies beyond a C++17 compiler.
 
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)](#building)
-[![Tests](https://img.shields.io/badge/tests-93%20passing-2FA35B)](#testing)
+[![Tests](https://img.shields.io/badge/tests-97%20passing-2FA35B)](#testing)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-linux%20%7C%20macOS%20%7C%20WSL-lightgrey)](#building)
 
@@ -29,7 +29,7 @@ in about 20 moves, in a fraction of a second, with no dependencies beyond a C++1
 | **Fast** | ~0.15 s per solve, 0.33 s of one-time table building, 21 MB of tables |
 | **No dependencies** | A C++17 compiler and `make`. Nothing to install, nothing to vendor |
 | **Readable** | A cubie model and plain IDA\*, written to be followed rather than golfed |
-| **Verified** | 93 tests, pinned against external ground truth — not just self-consistency |
+| **Verified** | 97 tests, pinned against external ground truth — not just self-consistency |
 | **WCA scrambles** | Random-state scrambles the way TNoodle makes them: uniform over every legal cube, ≤ 21 moves |
 | **Extensible** | Solving methods are rows in a table; adding one touches no existing code |
 
@@ -244,6 +244,26 @@ next.co[i] = (co[t.cp[i]] + t.co[i]) % 3;
 
 </details>
 
+## Simulator
+
+```sh
+make simulator
+./simulator          # then open http://localhost:8080
+```
+
+A browser front end for the engine, with no dependencies on either side: a
+dependency-free C++ HTTP server in `Simulator/Server.cc` owns one `CubeState` and an
+`Orientation`, and `Simulator/index.html` draws whatever it is told. The page never
+simulates a move itself — every turn goes through `CubeState::apply`, every `x`/`y`/`z`
+through `CubeState::rotate`, and the cube repaints from the returned `cp co ep eo`.
+
+- The four arrays are shown live and editable; illegal cubes are refused with a reason
+- Hover a cell to find its cubie, click a cubie to see which piece it is
+- Highlight the cross or any F2L pair; the glow follows the pieces wherever they are
+- Best cross, cross in the current frame, a chosen F2L pair, greedy F2L, or Kociemba,
+  planned as steps you can play one at a time
+- Keys: `u r f d l b` turn, shift for prime, `x y z` rotate, Backspace undoes
+
 ## Move notation
 
 The eighteen half-turn-metric moves are supported:
@@ -276,10 +296,11 @@ make clean  # removes binaries and object files
 make test
 ```
 
-93 tests covering the group structure (move orders, commuting and non-commuting face
+97 tests covering the group structure (move orders, commuting and non-commuting face
 pairs, permutation validity, orientation-sum and parity invariants), both phases'
 coordinate encodings, move tables and pruning tables, the solvers, the method table,
-random-move and random-state scramble generation, and move parsing. The run takes
+random-move and random-state scramble generation, the CFOP cross and F2L, and move
+parsing. The run takes
 about ten seconds, most of it spent solving real scrambles end to end. It exits non-zero on failure, so `make test`
 fails the build with it.
 
@@ -341,6 +362,10 @@ CubeState/               the state layer; knows nothing about solving
 Scramblers/
   WCA.h/.cc                random-state scrambles, TNoodle style; sits above the solvers
 
+Simulator/
+  Server.cc                local HTTP server exposing the state and solvers as JSON
+  index.html               the cube, CSS 3D and vanilla JS
+
 Solvers/
   Method.h                 the interface Main talks to
   Method.cc                the METHODS table — one row per method
@@ -351,6 +376,10 @@ Solvers/
     Phase2.h/.cc             solve within G1, inside a move budget
     Kociemba.h/.cc           builds the tables, searches phase 1/phase 2 combinations
   CFOP/
+    PieceSearch.h/.cc        bidirectional BFS over a chosen set of pieces, every stage's engine
+    Cross/Cross.h/.cc        the D cross, best of six colours, picks the frame
+    F2L/F2L.h/.cc            pair insertions, greedy order
+    cfop-test.cc, Makefile   interactive stage-by-stage tester
   Roux/
 ```
 
@@ -359,7 +388,7 @@ Solvers/
 - [x] Cubie model, move tables, notation parsing, scramble generation
 - [x] Kociemba two-phase solver with combination search
 - [x] WCA random-state scrambles
-- [ ] CFOP
+- [ ] CFOP — cross and F2L done, OLL and PLL to go
 - [ ] Roux
 - [ ] State import from a facelet string
 - [ ] Slice, wide and rotation moves (`M`, `E`, `S`, `r`, `u`, `x`, `y`, `z`)

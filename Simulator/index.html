@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CubeAlgos Simulator</title>
+<style>
+  :root {
+    --bg: #0e1013; --panel: #161a20; --panel2: #1c2129; --line: #262c36; --text: #e7eaf0;
+    --muted: #8b93a3; --accent: #6ea8fe; --good: #3ddc84; --bad: #ff6b6b; --warn: #ffd166;
+    --white: #ffffff; --red: #e0342c; --green: #2fa84f; --yellow: #f5d321; --orange: #ff8a1f; --blue: #1f6feb;
+    --plastic: #c4c8d0;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 -apple-system, "Segoe UI", Inter, Roboto, sans-serif; }
+  header { display: flex; align-items: center; gap: 14px; padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 5; }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; letter-spacing: .2px; }
+  header .spacer { flex: 1; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel2); font-size: 12px; color: var(--muted); }
+  .chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+  .chip.on { color: var(--text); border-color: #2f5f3f; }
+  .chip.on .dot { background: var(--good); box-shadow: 0 0 8px var(--good); }
+  main { display: grid; grid-template-columns: minmax(420px, 1fr) 440px; gap: 0; height: calc(100vh - 53px); }
+  @media (max-width: 960px) { main { grid-template-columns: 1fr; height: auto; } #viewport { min-height: 480px; } }
+  #viewport { position: relative; display: grid; place-items: center; padding-bottom: 160px; overflow: hidden; cursor: grab; user-select: none; background: radial-gradient(ellipse at 50% 40%, #171b22 0%, var(--bg) 70%); }
+  #viewport:active { cursor: grabbing; }
+  #hint { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); color: var(--muted); font-size: 12px; pointer-events: none; white-space: nowrap; }
+  #holdTag { position: absolute; top: 14px; left: 16px; font-size: 12px; color: var(--muted); }
+  #holdTag b { color: var(--text); font-weight: 600; }
+  .scene { width: 300px; height: 300px; perspective: 1400px; }
+  .cube { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; }
+  .cubie { position: absolute; width: 60px; height: 60px; left: 120px; top: 120px; transform-style: preserve-3d; transition: transform .18s cubic-bezier(.4,0,.2,1), opacity .2s; }
+  .cubie.instant { transition: none; }
+  .cubie.dim { opacity: .14; }
+  .cubie.picked .face { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .face { position: absolute; inset: 0; background: var(--plastic); border-radius: 6px; border: 3px solid var(--plastic); backface-visibility: hidden; }
+  .face.sticker { box-shadow: inset 0 0 0 1px rgba(0,0,0,.22); }
+  .face.f { transform: translateZ(30px); } .face.b { transform: rotateY(180deg) translateZ(30px); }
+  .face.r { transform: rotateY(90deg) translateZ(30px); } .face.l { transform: rotateY(-90deg) translateZ(30px); }
+  .face.u { transform: rotateX(90deg) translateZ(30px); } .face.d { transform: rotateX(-90deg) translateZ(30px); }
+  #panel { border-left: 1px solid var(--line); background: var(--panel); overflow-y: auto; height: 100%; padding: 16px 18px 40px; display: flex; flex-direction: column; gap: 18px; }
+  section h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  button { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font: inherit; cursor: pointer; transition: background .12s, border-color .12s; }
+  button:hover { background: #232a34; border-color: #3a4351; }
+  button:active { transform: translateY(1px); }
+  button.primary { background: var(--accent); color: #0b1220; border-color: var(--accent); font-weight: 600; }
+  button.primary:hover { background: #86b6ff; }
+  button.mv { min-width: 44px; font-weight: 600; font-family: ui-monospace, Menlo, Consolas, monospace; }
+  button.rot { min-width: 0; padding: 6px 4px; font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--warn); }
+  button.toggle.on { background: #24344d; border-color: var(--accent); color: var(--accent); }
+  button.pair.on { background: #1f3a2c; border-color: var(--good); color: var(--good); }
+  input[type=text] { flex: 1; min-width: 120px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; font: 13px ui-monospace, Menlo, Consolas, monospace; }
+  input[type=text]:focus { outline: none; border-color: var(--accent); }
+  .grid18 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  .plan { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; min-height: 26px; }
+  .plan .lbl { width: 100%; font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .tok { padding: 3px 8px; border-radius: 6px; background: var(--panel2); border: 1px solid var(--line); font: 600 12px ui-monospace, Menlo, Consolas, monospace; }
+  .tok.done { opacity: .35; } .tok.next { border-color: var(--accent); color: var(--accent); }
+  .tok.rot { color: var(--warn); }
+  .msg { font-size: 12px; color: var(--muted); margin-top: 6px; min-height: 16px; }
+  .msg.err { color: var(--bad); }
+  table.state { border-collapse: separate; border-spacing: 3px; width: 100%; }
+  table.state th { text-align: left; font-size: 11px; color: var(--muted); font-weight: 600; width: 28px; font-family: ui-monospace, monospace; }
+  table.state td { padding: 0; }
+  table.state input { width: 100%; text-align: center; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 5px; padding: 4px 0; font: 12px ui-monospace, Menlo, Consolas, monospace; }
+  table.state input.home { color: var(--good); border-color: #234a33; }
+  table.state input.hover { border-color: var(--accent); background: #24344d; }
+  table.state .slots td { text-align: center; font-size: 10px; color: var(--muted); font-family: ui-monospace, monospace; padding-bottom: 1px; }
+  kbd { font: 11px ui-monospace, monospace; background: var(--panel2); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>CubeAlgos Simulator</h1>
+  <span class="chip" id="chipSolved"><span class="dot"></span>Solved</span>
+  <span class="chip" id="chipCross"><span class="dot"></span>Cross</span>
+  <span class="chip" id="chipF2L"><span class="dot"></span>F2L <span id="pairCount">0/4</span></span>
+  <span class="spacer"></span>
+  <button id="btnScramble" class="primary">Scramble</button>
+  <button id="btnUndo" title="Backspace">Undo</button>
+  <button id="btnReset">Reset</button>
+</header>
+<main>
+  <div id="viewport">
+    <div id="holdTag">Hold: <b id="holdText">identity</b> <span id="holdFaces"></span></div>
+    <div class="scene"><div class="cube" id="cube"></div></div>
+    <div id="hint">drag to orbit · <kbd>u r f d l b</kbd> turn, <kbd>shift</kbd> prime · <kbd>x y z</kbd> rotate · click a cubie</div>
+  </div>
+  <aside id="panel">
+    <section>
+      <h2>Moves</h2>
+      <div class="grid18" id="moveGrid"></div>
+      <div class="grid18" style="grid-template-columns: repeat(9, 1fr); margin-top:8px" id="rotRow"></div>
+      <div class="row" style="margin-top:8px">
+        <input type="text" id="seqInput" placeholder="R U R' U'  x  y2 …" spellcheck="false">
+        <button id="btnSeq">Apply</button>
+      </div>
+      <div class="msg" id="seqMsg"></div>
+    </section>
+
+    <section>
+      <h2>Highlight</h2>
+      <div class="row">
+        <button class="toggle" data-hl="cross">Cross</button>
+        <button class="toggle" data-hl="p0">DFR pair</button>
+        <button class="toggle" data-hl="p1">DLF pair</button>
+        <button class="toggle" data-hl="p2">DBL pair</button>
+        <button class="toggle" data-hl="p3">DRB pair</button>
+        <button class="toggle" data-hl="f2l">All F2L</button>
+        <button id="btnHlClear">Clear</button>
+      </div>
+      <div class="msg" id="pickMsg">Click a cubie on the cube to see which piece it is.</div>
+    </section>
+
+    <section>
+      <h2>Solve</h2>
+      <div class="row">
+        <button id="btnBestCross">Best cross</button>
+        <button id="btnCross">Cross here</button>
+        <button id="btnKociemba">Kociemba</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <span style="color:var(--muted);font-size:12px">Pair</span>
+        <button class="pair on" data-slot="0">DFR</button>
+        <button class="pair" data-slot="1">DLF</button>
+        <button class="pair" data-slot="2">DBL</button>
+        <button class="pair" data-slot="3">DRB</button>
+        <button id="btnPair">Insert pair</button>
+        <button id="btnF2L">Greedy F2L</button>
+      </div>
+      <div class="plan" id="plan"></div>
+      <div class="row" style="margin-top:8px">
+        <button id="btnStep" class="primary">Step</button>
+        <button id="btnPlay">Play</button>
+        <button id="btnAll">Apply all</button>
+        <button id="btnClear">Clear</button>
+      </div>
+      <div class="msg" id="solveMsg"></div>
+    </section>
+
+    <section>
+      <h2>State <span style="text-transform:none;letter-spacing:0;color:var(--muted);font-weight:400">— edit and apply, hover a cell to find its cubie</span></h2>
+      <table class="state" id="stateTable"></table>
+      <div class="row" style="margin-top:8px">
+        <button id="btnSet">Apply edits</button>
+        <button id="btnRevert">Revert</button>
+      </div>
+      <div class="msg" id="setMsg"></div>
+    </section>
+  </aside>
+</main>
+
+<script>
+// Slot geometry mirrors CubeState: corners URF UFL ULB UBR DFR DLF DBL DRB, edges UR UF UL UB DR DF DL DB FR FL BL BR
+const CORNER_POS = [[1,1,1],[-1,1,1],[-1,1,-1],[1,1,-1],[1,-1,1],[-1,-1,1],[-1,-1,-1],[1,-1,-1]];
+const EDGE_POS   = [[1,1,0],[0,1,1],[-1,1,0],[0,1,-1],[1,-1,0],[0,-1,1],[-1,-1,0],[0,-1,-1],[1,0,1],[-1,0,1],[-1,0,-1],[1,0,-1]];
+const CORNER_FACES = [[0,1,2],[0,2,4],[0,4,5],[0,5,1],[3,2,1],[3,4,2],[3,5,4],[3,1,5]];
+const EDGE_FACES   = [[0,1],[0,2],[0,4],[0,5],[3,1],[3,2],[3,4],[3,5],[2,1],[2,4],[5,4],[5,1]];
+const CORNER_NAMES = ['URF','UFL','ULB','UBR','DFR','DLF','DBL','DRB'];
+const EDGE_NAMES   = ['UR','UF','UL','UB','DR','DF','DL','DB','FR','FL','BL','BR'];
+const FACE_CLASS   = ['u','r','f','d','l','b'];
+const COLOR_VARS   = ['var(--white)','var(--red)','var(--green)','var(--yellow)','var(--orange)','var(--blue)'];
+const COLOR_NAMES  = ['white','red','green','yellow','orange','blue'];
+const AXIS_OF_FACE = { U:[1,'Y',-1], D:[1,'Y',1], R:[0,'X',1], L:[0,'X',-1], F:[2,'Z',1], B:[2,'Z',-1] };
+const GAP = 63;
+
+const $ = id => document.getElementById(id);
+const api = async (cmd, params = {}) => {
+  const q = new URLSearchParams({ cmd, ...params });
+  return (await fetch('/api?' + q.toString())).json();
+};
+
+let snap = null, cubies = [], highlight = new Set(), picked = null, selectedSlot = 0;
+let plan = [], planPos = 0, playing = false, busy = false;
+let orbit = { x: -28, y: -38 };
+
+// Build the 26 cubies once, then only recolour them
+function buildCube() {
+  const cube = $('cube');
+  const make = (kind, idx, pos) => {
+    const el = document.createElement('div');
+    el.className = 'cubie';
+    el.dataset.kind = kind; el.dataset.idx = idx;
+    el.pos = pos;
+    for (const f of FACE_CLASS) { const d = document.createElement('div'); d.className = 'face ' + f; el.appendChild(d); }
+    el.addEventListener('click', e => { e.stopPropagation(); pick(kind, idx); });
+    cube.appendChild(el);
+    return el;
+  };
+  CORNER_POS.forEach((p, i) => cubies.push(make('c', i, p)));
+  EDGE_POS.forEach((p, i) => cubies.push(make('e', i, p)));
+  [[0,1,0],[1,0,0],[0,0,1],[0,-1,0],[-1,0,0],[0,0,-1]].forEach((p, i) => cubies.push(make('m', i, p)));
+  placeAll(true);
+  applyOrbit();
+}
+
+function baseTransform(pos) { return `translate3d(${pos[0]*GAP}px, ${-pos[1]*GAP}px, ${pos[2]*GAP}px)`; }
+function placeAll(instant) {
+  for (const el of cubies) { el.classList.toggle('instant', !!instant); el.style.transform = baseTransform(el.pos); }
+  if (instant) { cube.offsetHeight; cubies.forEach(el => el.classList.remove('instant')); }
+}
+function applyOrbit() { $('cube').style.transform = `rotateX(${orbit.x}deg) rotateY(${orbit.y}deg)`; }
+
+function paint(el, colorsByFace) {
+  el.querySelectorAll('.face').forEach((f, i) => {
+    const c = colorsByFace[i];
+    f.style.background = c == null ? 'var(--plastic)' : COLOR_VARS[c];
+    f.classList.toggle('sticker', c != null);
+  });
+}
+
+function render() {
+  if (!snap) return;
+  for (const el of cubies) {
+    const by = [null, null, null, null, null, null];
+    if (el.dataset.kind === 'c') CORNER_FACES[+el.dataset.idx].forEach((f, k) => by[f] = snap.corners[+el.dataset.idx][k]);
+    else if (el.dataset.kind === 'e') EDGE_FACES[+el.dataset.idx].forEach((f, k) => by[f] = snap.edges[+el.dataset.idx][k]);
+    else by[+el.dataset.idx] = snap.faces[+el.dataset.idx];
+    paint(el, by);
+  }
+  applyHighlight();
+  renderStatus();
+  renderState();
+}
+
+function renderStatus() {
+  $('chipSolved').classList.toggle('on', snap.solved);
+  $('chipCross').classList.toggle('on', snap.cross);
+  const n = snap.pairs.filter(Boolean).length;
+  $('pairCount').textContent = n + '/4';
+  $('chipF2L').classList.toggle('on', snap.cross && n === 4);
+  $('holdText').textContent = snap.hold || 'identity';
+  $('holdFaces').textContent = ' · U ' + COLOR_NAMES[snap.faces[0]] + ', F ' + COLOR_NAMES[snap.faces[2]];
+  $('btnUndo').disabled = snap.history === 0;
+  document.querySelectorAll('button.pair').forEach(b => b.style.opacity = snap.pairs[+b.dataset.slot] ? .55 : 1);
+}
+
+// Highlight sets are piece ids, so the pieces glow wherever they currently sit
+function highlightedPieces() {
+  const set = new Set();
+  const add = (kind, piece) => set.add(kind + piece);
+  for (const h of highlight) {
+    if (h === 'cross' || h === 'f2l') [4,5,6,7].forEach(p => add('e', p));
+    if (h === 'f2l') [0,1,2,3].forEach(k => { add('c', 4 + k); add('e', 8 + k); });
+    if (h[0] === 'p') { const k = +h[1]; add('c', 4 + k); add('e', 8 + k); }
+  }
+  return set;
+}
+function applyHighlight() {
+  const set = highlightedPieces();
+  for (const el of cubies) {
+    let on = true;
+    if (set.size) {
+      if (el.dataset.kind === 'c') on = set.has('c' + snap.cp[+el.dataset.idx]);
+      else if (el.dataset.kind === 'e') on = set.has('e' + snap.ep[+el.dataset.idx]);
+    }
+    el.classList.toggle('dim', !on);
+    el.classList.toggle('picked', picked && picked.kind === el.dataset.kind && picked.idx === +el.dataset.idx);
+  }
+  document.querySelectorAll('button.toggle').forEach(b => b.classList.toggle('on', highlight.has(b.dataset.hl)));
+}
+
+function pick(kind, idx) {
+  picked = (picked && picked.kind === kind && picked.idx === idx) ? null : { kind, idx };
+  const msg = $('pickMsg');
+  if (!picked) { msg.textContent = 'Click a cubie on the cube to see which piece it is.'; applyHighlight(); renderState(); return; }
+  if (kind === 'c') {
+    const piece = snap.cp[idx], tw = snap.co[idx];
+    msg.innerHTML = `Slot <b>${CORNER_NAMES[idx]}</b> (cp[${idx}]) holds corner <b>${CORNER_NAMES[piece]}</b> (${piece}), twist ${tw}` + (piece >= 4 ? ` — ${CORNER_NAMES[piece]} pair` : '');
+    if (piece >= 4) selectSlot(piece - 4);
+  } else if (kind === 'e') {
+    const piece = snap.ep[idx], fl = snap.eo[idx];
+    msg.innerHTML = `Slot <b>${EDGE_NAMES[idx]}</b> (ep[${idx}]) holds edge <b>${EDGE_NAMES[piece]}</b> (${piece}), flip ${fl}` + (piece >= 8 ? ` — ${CORNER_NAMES[piece - 4]} pair` : piece >= 4 ? ' — cross edge' : '');
+    if (piece >= 8) selectSlot(piece - 8);
+  } else msg.innerHTML = `Centre <b>${'URFDLB'[idx]}</b> — ${COLOR_NAMES[snap.faces[idx]]}`;
+  applyHighlight(); renderState();
+}
+function selectSlot(k) { selectedSlot = k; document.querySelectorAll('button.pair').forEach(b => b.classList.toggle('on', +b.dataset.slot === k)); }
+
+// State table: one editable cell per slot, green when the piece is home and oriented
+function renderState() {
+  const t = $('stateTable');
+  const rows = [['cp', 8, CORNER_NAMES], ['co', 8, CORNER_NAMES], ['ep', 12, EDGE_NAMES], ['eo', 12, EDGE_NAMES]];
+  if (!t.dataset.built) {
+    let html = '';
+    for (const [key, n, names] of rows) {
+      if (key === 'cp' || key === 'ep') html += '<tr class="slots"><th></th>' + names.map(nm => `<td>${nm}</td>`).join('') + '</tr>';
+      html += `<tr><th>${key}</th>` + Array.from({ length: n }, (_, i) => `<td><input data-key="${key}" data-i="${i}" maxlength="2"></td>`).join('') + '</tr>';
+    }
+    t.innerHTML = html; t.dataset.built = 1;
+    t.querySelectorAll('input').forEach(inp => {
+      const kind = inp.dataset.key[0] === 'c' ? 'c' : 'e', idx = +inp.dataset.i;
+      inp.addEventListener('mouseenter', () => hoverCubie(kind, idx, true));
+      inp.addEventListener('mouseleave', () => hoverCubie(kind, idx, false));
+    });
+  }
+  for (const [key, n] of rows) for (let i = 0; i < n; i++) {
+    const inp = t.querySelector(`input[data-key=${key}][data-i="${i}"]`);
+    if (document.activeElement !== inp) inp.value = snap[key][i];
+    const home = key[0] === 'c' ? (snap.cp[i] === i && snap.co[i] === 0) : (snap.ep[i] === i && snap.eo[i] === 0);
+    inp.classList.toggle('home', home);
+    inp.classList.toggle('hover', !!picked && picked.kind === key[0] && picked.idx === i);
+  }
+}
+function hoverCubie(kind, idx, on) {
+  for (const el of cubies) if (el.dataset.kind === kind && +el.dataset.idx === idx) el.classList.toggle('picked', on || (picked && picked.kind === kind && picked.idx === idx));
+  $('stateTable').querySelectorAll(`input[data-i="${idx}"]`).forEach(inp => { if (inp.dataset.key[0] === kind) inp.classList.toggle('hover', on); });
+}
+
+// Animate one token as a layer or whole-cube turn, then trust the server's state
+function animateToken(tok) {
+  const face = tok[0].toUpperCase(), isRot = 'xyz'.includes(tok[0]);
+  const spec = isRot ? { x: AXIS_OF_FACE.R, y: AXIS_OF_FACE.U, z: AXIS_OF_FACE.F }[tok[0]] : AXIS_OF_FACE[face];
+  if (!spec) return;
+  const [axis, css, sign] = spec;
+  const turns = tok.endsWith('2') ? 2 : 1, dir = tok.endsWith("'") ? -1 : 1;
+  const angle = 90 * turns * dir * sign;
+  for (const el of cubies) {
+    const inLayer = isRot || (face === 'U' || face === 'R' || face === 'F' ? el.pos[axis] === 1 : el.pos[axis] === -1);
+    if (inLayer) el.style.transform = `rotate${css}(${angle}deg) ` + baseTransform(el.pos);
+  }
+}
+
+async function applyTokens(tokens, animate = true) {
+  if (busy || !tokens.length) return;
+  busy = true;
+  try {
+    if (animate && tokens.length === 1) {
+      animateToken(tokens[0]);
+      const [res] = await Promise.all([api('apply', { seq: tokens[0] }), new Promise(r => setTimeout(r, 190))]);
+      if (res.error) { $('seqMsg').textContent = res.error; $('seqMsg').className = 'msg err'; placeAll(false); return; }
+      snap = res; placeAll(true); render();
+    } else {
+      const res = await api('apply', { seq: tokens.join(' ') });
+      if (res.error) { $('seqMsg').textContent = res.error; $('seqMsg').className = 'msg err'; return; }
+      snap = res; render();
+    }
+    $('seqMsg').textContent = ''; $('seqMsg').className = 'msg';
+  } finally { busy = false; }
+}
+
+// Plans are token lists with optional group labels, stepped through one token at a time
+function setPlan(groups, msg) {
+  plan = []; planPos = 0;
+  for (const g of groups) { if (g.label) plan.push({ label: g.label }); for (const t of g.tokens) plan.push({ tok: t }); }
+  renderPlan();
+  $('solveMsg').textContent = msg || ''; $('solveMsg').className = 'msg';
+}
+function renderPlan() {
+  const el = $('plan'); el.innerHTML = '';
+  let seen = 0, nextMarked = false;
+  plan.forEach((p) => {
+    if (p.label) { const l = document.createElement('div'); l.className = 'lbl'; l.textContent = p.label; el.appendChild(l); return; }
+    const s = document.createElement('span');
+    s.className = 'tok' + ('xyz'.includes(p.tok[0]) ? ' rot' : '');
+    if (seen < planPos) s.classList.add('done'); else if (!nextMarked) { s.classList.add('next'); nextMarked = true; }
+    s.textContent = p.tok; el.appendChild(s); seen++;
+  });
+  const total = plan.filter(p => p.tok).length;
+  $('btnStep').disabled = $('btnPlay').disabled = $('btnAll').disabled = planPos >= total;
+}
+function nextToken() { let seen = 0; for (const p of plan) { if (!p.tok) continue; if (seen === planPos) return p.tok; seen++; } return null; }
+async function step() { const t = nextToken(); if (!t) return; await applyTokens([t]); planPos++; renderPlan(); }
+async function play() {
+  if (playing) { playing = false; $('btnPlay').textContent = 'Play'; return; }
+  playing = true; $('btnPlay').textContent = 'Pause';
+  while (playing && nextToken()) { await step(); await new Promise(r => setTimeout(r, 120)); }
+  playing = false; $('btnPlay').textContent = 'Play';
+}
+async function applyAll() {
+  const rest = []; let seen = 0;
+  for (const p of plan) { if (!p.tok) continue; if (seen++ >= planPos) rest.push(p.tok); }
+  await applyTokens(rest, false); planPos += rest.length; renderPlan();
+}
+
+function fail(res, where) { if (res.error) { $(where).textContent = res.error; $(where).className = 'msg err'; return true; } return false; }
+
+async function bestCross() {
+  const r = await api('bestcross'); if (fail(r, 'solveMsg')) return;
+  const rot = r.rotation ? r.rotation.split(' ') : [];
+  setPlan([{ label: `${r.color} cross · ${r.moves.length} moves` + (rot.length ? ` after ${r.rotation}` : ''), tokens: [...rot, ...r.moves] }]);
+  highlight = new Set(['cross']); applyHighlight();
+}
+async function crossHere() {
+  const r = await api('cross'); if (fail(r, 'solveMsg')) return;
+  setPlan([{ label: `cross on D · ${r.moves.length} moves`, tokens: r.moves }], r.moves.length ? '' : 'Cross is already solved in this frame.');
+  highlight = new Set(['cross']); applyHighlight();
+}
+async function insertPair() {
+  const r = await api('pair', { slot: selectedSlot }); if (fail(r, 'solveMsg')) return;
+  const nm = CORNER_NAMES[4 + selectedSlot];
+  setPlan([{ label: `${nm} pair · ${r.moves.length} moves`, tokens: r.moves }], r.moves.length ? '' : `${nm} pair is already in.`);
+  highlight = new Set(['p' + selectedSlot]); applyHighlight();
+}
+async function greedyF2L() {
+  const r = await api('f2l'); if (fail(r, 'solveMsg')) return;
+  const total = r.pairs.reduce((n, p) => n + p.moves.length, 0);
+  setPlan(r.pairs.map(p => ({ label: `${CORNER_NAMES[4 + p.slot]} pair · ${p.moves.length}`, tokens: p.moves })), `F2L in ${total} moves, greedy order.`);
+  highlight = new Set(['f2l']); applyHighlight();
+}
+async function kociemba() {
+  $('solveMsg').textContent = 'Searching…';
+  const r = await api('kociemba'); if (fail(r, 'solveMsg')) return;
+  setPlan([{ label: `Kociemba · ${r.moves.length} moves`, tokens: r.moves }], r.moves.length ? '' : 'Already solved.');
+}
+
+async function scramble() {
+  if (busy) return;
+  const r = await api('scramble'); snap = r.state; render();
+  setPlan([], ''); $('seqMsg').textContent = 'Scramble: ' + r.moves.join(' '); $('seqMsg').className = 'msg';
+}
+async function reset() { snap = await api('reset'); render(); setPlan([], ''); }
+async function undo() { snap = await api('undo'); render(); }
+
+async function applyEdits() {
+  const vals = k => Array.from($('stateTable').querySelectorAll(`input[data-key=${k}]`)).map(i => i.value.trim()).join(',');
+  const r = await api('set', { cp: vals('cp'), co: vals('co'), ep: vals('ep'), eo: vals('eo') });
+  if (fail(r, 'setMsg')) return;
+  snap = r; render(); $('setMsg').textContent = 'Applied.'; $('setMsg').className = 'msg';
+}
+
+function wireUI() {
+  const grid = $('moveGrid');
+  for (const f of 'URFDLB') for (const suf of ['', '2', "'"]) {
+    const b = document.createElement('button'); b.className = 'mv'; b.textContent = f + suf;
+    b.onclick = () => applyTokens([f + suf]); grid.appendChild(b);
+  }
+  const rr = $('rotRow');
+  for (const r of 'xyz') for (const suf of ['', '2', "'"]) {
+    const b = document.createElement('button'); b.className = 'rot'; b.textContent = r + suf;
+    b.onclick = () => applyTokens([r + suf]); rr.appendChild(b);
+  }
+  $('btnSeq').onclick = () => { const toks = $('seqInput').value.trim().split(/\s+/).filter(Boolean); applyTokens(toks, toks.length === 1); };
+  $('seqInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnSeq').click(); e.stopPropagation(); });
+  document.querySelectorAll('button.toggle').forEach(b => b.onclick = () => { const k = b.dataset.hl; highlight.has(k) ? highlight.delete(k) : highlight.add(k); applyHighlight(); });
+  $('btnHlClear').onclick = () => { highlight.clear(); picked = null; applyHighlight(); renderState(); };
+  document.querySelectorAll('button.pair').forEach(b => b.onclick = () => selectSlot(+b.dataset.slot));
+  $('btnBestCross').onclick = bestCross; $('btnCross').onclick = crossHere; $('btnKociemba').onclick = kociemba;
+  $('btnPair').onclick = insertPair; $('btnF2L').onclick = greedyF2L;
+  $('btnStep').onclick = step; $('btnPlay').onclick = play; $('btnAll').onclick = applyAll; $('btnClear').onclick = () => setPlan([], '');
+  $('btnScramble').onclick = scramble; $('btnReset').onclick = reset; $('btnUndo').onclick = undo;
+  $('btnSet').onclick = applyEdits; $('btnRevert').onclick = () => { renderState(); $('setMsg').textContent = ''; };
+
+  const vp = $('viewport'); let drag = null;
+  vp.addEventListener('mousedown', e => { drag = { x: e.clientX, y: e.clientY, ox: orbit.x, oy: orbit.y }; });
+  window.addEventListener('mousemove', e => { if (!drag) return; orbit.y = drag.oy + (e.clientX - drag.x) * .4; orbit.x = Math.max(-90, Math.min(90, drag.ox - (e.clientY - drag.y) * .4)); applyOrbit(); });
+  window.addEventListener('mouseup', () => drag = null);
+  vp.addEventListener('touchstart', e => { const t = e.touches[0]; drag = { x: t.clientX, y: t.clientY, ox: orbit.x, oy: orbit.y }; }, { passive: true });
+  vp.addEventListener('touchmove', e => { if (!drag) return; const t = e.touches[0]; orbit.y = drag.oy + (t.clientX - drag.x) * .4; orbit.x = Math.max(-90, Math.min(90, drag.ox - (t.clientY - drag.y) * .4)); applyOrbit(); }, { passive: true });
+  vp.addEventListener('touchend', () => drag = null);
+
+  window.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT' || e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if ('urfdlb'.includes(k) && k) { applyTokens([k.toUpperCase() + (e.shiftKey ? "'" : '')]); e.preventDefault(); }
+    else if ('xyz'.includes(k) && k) { applyTokens([k + (e.shiftKey ? "'" : '')]); e.preventDefault(); }
+    else if (e.key === 'Backspace') { undo(); e.preventDefault(); }
+    else if (e.key === ' ') { step(); e.preventDefault(); }
+    else if (e.key === 'Escape') { setPlan([], ''); }
+  });
+}
+
+(async () => {
+  buildCube(); wireUI();
+  snap = await api('state'); render(); renderPlan();
+})();
+</script>
+</body>
+</html>

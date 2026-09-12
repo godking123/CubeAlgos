@@ -5,7 +5,9 @@
 #include "Solvers/KociembaNaive/Kociemba.h"
 #include "Solvers/KociembaNaive/Phase1.h"
 #include "Solvers/KociembaNaive/Phase2.h"
+#include "Solvers/CFOP/PieceSearch.h"
 #include "Solvers/CFOP/Cross/Cross.h"
+#include "Solvers/CFOP/F2L/F2L.h"
 #include "Scramblers/WCA.h"
 
 // ─── ANSI Color Codes ──────────────────────────────────────────────────────────
@@ -1371,6 +1373,86 @@ static bool runAllTests() {
             }
         }
         total++; if (runTest("WCA::allowed rejects within one move of solved, allows two", ok)) passed++;
+    }
+
+    // ─── CFOP: Piece Search and F2L ───────────────────────────────────────────────
+
+    // Test 94: the key sees tracked pieces only — moving an untracked piece leaves it
+    // alone, moving a tracked one changes it, and the solved key is what isSolved uses
+    {
+        CubeState solved = CubeState::solved();
+        uint16_t edges = Cross::EDGES;
+        // U Touches No D Edge, R Moves DR
+        CubeState u = solved.apply(Move::U), r = solved.apply(Move::R);
+        bool ok = PieceSearch::encode(u, edges, 0) == PieceSearch::encode(solved, edges, 0)
+               && PieceSearch::encode(r, edges, 0) != PieceSearch::encode(solved, edges, 0)
+               && PieceSearch::isSolved(u, edges, 0) && !PieceSearch::isSolved(r, edges, 0);
+        // Tracking the URF Corner Too Makes U Visible, Tracking DFR Does Not
+        if (PieceSearch::isSolved(u, edges, 1 << 0) || !PieceSearch::isSolved(u, edges, 1 << 4)) ok = false;
+        total++; if (runTest("PieceSearch key ignores untracked pieces, sees tracked ones", ok)) passed++;
+    }
+
+    // Test 95: the two-layer check and the pair slots — solved is solved, every pair
+    // costs nothing on a solved cube, and a U move breaks no pair
+    {
+        CubeState solved = CubeState::solved();
+        bool ok = F2L::isSolved(solved) && F2L::isSolved(solved.apply(Move::U))
+               && !F2L::isSolved(solved.apply(Move::R));
+        for (int slot = 0; slot < F2L::SLOTS; slot++) {
+            if (!F2L::solvePair(solved, slot, 0).empty()) ok = false;
+            if (F2L::corner(slot) != 4 + slot || F2L::edge(slot) != 8 + slot) ok = false;
+        }
+        total++; if (runTest("F2L::isSolved and pair slots line up with the D and E layers", ok)) passed++;
+    }
+
+    // Test 96: R U R' pulls out the DFR pair and nothing else, and the pair search puts
+    // it back in three, keeping the cross and the other three pairs whether or not they
+    // are tracked
+    {
+        CubeState s = CubeState::solved().apply(Move::R).apply(Move::U).apply(Move::Rp);
+        bool ok = Cross::isSolved(s) && !F2L::isSolved(s);
+        for (int slot = 1; slot < F2L::SLOTS; slot++)
+            if (!F2L::solvePair(s, slot, 0).empty()) ok = false;
+        for (int placed : {0, 0b1110}) {
+            std::vector<Move> fix = F2L::solvePair(s, 0, placed);
+            if (fix.size() != 3) ok = false;
+            CubeState after = s;
+            for (Move m : fix) after = after.apply(m);
+            if (!F2L::isSolved(after)) ok = false;
+        }
+        total++; if (runTest("One insert undone comes back in three, rest untouched", ok)) passed++;
+    }
+
+    // Test 97: greedy F2L after the cross finishes the first two layers on real scrambles,
+    // fills every slot exactly once, and never leaves the cross or an earlier pair broken
+    // after any insertion. Checked in the scrambling frame, so the hold is exercised too
+    {
+        bool ok = true;
+        for (uint64_t seed = 0; seed < 15 && ok; seed++) {
+            CubeState s = CubeState::solved();
+            for (Move m : WCA::scramble(seed)) s = s.apply(m);
+            CrossResult cross = Cross::bestCross(s);
+            CubeState st = s.rotate(cross.hold);
+            for (Move m : cross.moves) st = st.apply(m);
+
+            std::vector<F2LPair> pairs = F2L::solve(st);
+            if (pairs.size() != static_cast<size_t>(F2L::SLOTS)) { ok = false; break; }
+
+            std::vector<Move> all = cross.moves;
+            int placed = 0;
+            for (const F2LPair& p : pairs) {
+                if (placed & (1 << p.slot)) ok = false;
+                for (Move m : p.moves) st = st.apply(m);
+                all.insert(all.end(), p.moves.begin(), p.moves.end());
+                placed |= 1 << p.slot;
+                if (!Cross::isSolved(st)) ok = false;
+                for (int slot = 0; slot < F2L::SLOTS; slot++)
+                    if ((placed & (1 << slot)) && !F2L::solvePair(st, slot, 0).empty()) ok = false;
+            }
+            if (!F2L::isSolved(st)) ok = false;
+            if (!F2L::isSolved(execute(s, cross.hold, all).rotate(cross.hold))) ok = false;
+        }
+        total++; if (runTest("Greedy F2L solves two layers, one pair per slot, nothing broken", ok)) passed++;
     }
 
     std::cout << "\n" << BOLD;

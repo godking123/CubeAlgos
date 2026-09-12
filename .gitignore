@@ -9,6 +9,7 @@
 !*.h
 !*.md
 !Makefile
+!*.html
 !.gitignore
 
 # specific excludes
@@ -16,3 +17,5 @@ CLAUDE.md
 .build/
 **/cubealgo
 **/tests
+**/cfop-test
+**/simulator

@@ -13,7 +13,8 @@ SOLVERS = Solvers/Method.cc \
           Solvers/KociembaNaive/Coords.cc Solvers/KociembaNaive/CoordTables.cc \
           Solvers/KociembaNaive/Phase1.cc Solvers/KociembaNaive/Phase2.cc \
           Solvers/KociembaNaive/Kociemba.cc \
-          Solvers/CFOP/CFOP.cc Solvers/CFOP/Cross/Cross.cc \
+          Solvers/CFOP/CFOP.cc Solvers/CFOP/PieceSearch.cc \
+          Solvers/CFOP/Cross/Cross.cc Solvers/CFOP/F2L/F2L.cc \
           Solvers/Roux/Roux.cc
 
 # Scramble generators that need a solver, so they sit above both layers.
@@ -22,7 +23,7 @@ SCRAMBLERS = Scramblers/WCA.cc
 CORE_OBJS = $(addprefix $(BUILD)/,$(notdir $(CORE:.cc=.o) $(SOLVERS:.cc=.o) \
                                           $(SCRAMBLERS:.cc=.o)))
 
-ALL_OBJS = $(CORE_OBJS) $(BUILD)/Main.o $(BUILD)/Tests.o
+ALL_OBJS = $(CORE_OBJS) $(BUILD)/Main.o $(BUILD)/Tests.o $(BUILD)/Server.o
 
 .PHONY: all
 all: cubealgo tests
@@ -31,6 +32,10 @@ cubealgo: $(BUILD)/Main.o $(CORE_OBJS)
 	$(CXX) $(CXXFLAGS) $^ -o $@
 
 tests: $(BUILD)/Tests.o $(CORE_OBJS)
+	$(CXX) $(CXXFLAGS) $^ -o $@
+
+# The browser simulator, served from a local socket so the page can call the solvers
+simulator: $(BUILD)/Server.o $(CORE_OBJS)
 	$(CXX) $(CXXFLAGS) $^ -o $@
 
 $(BUILD)/%.o: %.cc | $(BUILD)
@@ -51,10 +56,16 @@ $(BUILD)/%.o: Solvers/CFOP/%.cc | $(BUILD)
 $(BUILD)/%.o: Solvers/CFOP/Cross/%.cc | $(BUILD)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
+$(BUILD)/%.o: Solvers/CFOP/F2L/%.cc | $(BUILD)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
 $(BUILD)/%.o: Solvers/Roux/%.cc | $(BUILD)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD)/%.o: Scramblers/%.cc | $(BUILD)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD)/%.o: Simulator/%.cc | $(BUILD)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD):
