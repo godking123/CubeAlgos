@@ -1,6 +1,13 @@
-# CubeAlgos
+<img src="docs/assets/logo.svg" alt="cubealgos" width="140">
 
-A Rubik's Cube solver in C++.
+# cubealgos
+
+`cubealgos` is a Rubik's Cube solver written in C++. It generates WCA random-state
+scrambles and solves them with a choice of methods.
+
+[![C++](https://img.shields.io/badge/C%2B%2B-17-blue?style=flat)](#build)
+[![license](https://img.shields.io/badge/license-MIT-green?style=flat)](LICENSE)
+[![tests](https://img.shields.io/badge/tests-passing-brightgreen?style=flat)](#build)
 
 ## Build
 
