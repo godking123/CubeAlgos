@@ -1,4 +1,4 @@
-<img src="docs/assets/logo.svg" alt="cubealgos" width="140">
+<img src="docs/assets/logo.svg" alt="cubealgos" width="140"> 
 
 # cubealgos
 
